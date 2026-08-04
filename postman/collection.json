@@ -1,0 +1,1440 @@
+{
+  "info": {
+    "_postman_id": "fitzenix-api-collection-v1",
+    "name": "Fitzenix API",
+    "description": "Fitzenix Express API (/api/v1).\n\nHow to use:\n1. Import this file into Postman (Import → Upload Files).\n2. Set collection variables: baseUrl, email, password, gymId.\n3. Run Auth → Login — it auto-saves accessToken + refreshToken.\n4. For super_admin tenant routes, set gymId (sent as X-Gym-Id).\n\nMoney amounts are INR paise integers.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4000/api/v1" },
+    { "key": "origin", "value": "http://localhost:4000" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" },
+    { "key": "gymId", "value": "" },
+    { "key": "userId", "value": "" },
+    { "key": "memberId", "value": "" },
+    { "key": "trainerId", "value": "" },
+    { "key": "planId", "value": "" },
+    { "key": "subscriptionId", "value": "" },
+    { "key": "workoutId", "value": "" },
+    { "key": "dietId", "value": "" },
+    { "key": "progressId", "value": "" },
+    { "key": "paymentId", "value": "" },
+    { "key": "invoiceId", "value": "" },
+    { "key": "feedId", "value": "" },
+    { "key": "commentId", "value": "" },
+    { "key": "conversationId", "value": "" },
+    { "key": "notificationId", "value": "" },
+    { "key": "email", "value": "owner@fitzenix.com" },
+    { "key": "password", "value": "Secret123!" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "0. App",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{origin}}/health"
+          }
+        },
+        {
+          "name": "API Root",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/"
+          }
+        },
+        {
+          "name": "Swagger Docs",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{origin}}/api/docs"
+          }
+        },
+        {
+          "name": "OpenAPI JSON",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{origin}}/api/docs.json"
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Auth",
+      "item": [
+        {
+          "name": "Register (gym owner)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  const d = j.data || j;",
+                  "  if (d.accessToken) pm.collectionVariables.set('accessToken', d.accessToken);",
+                  "  if (d.refreshToken) pm.collectionVariables.set('refreshToken', d.refreshToken);",
+                  "  if (d.user && d.user._id) pm.collectionVariables.set('userId', d.user._id);",
+                  "  if (d.user && d.user.gymId) pm.collectionVariables.set('gymId', d.user.gymId);",
+                  "  if (d.gym && d.gym._id) pm.collectionVariables.set('gymId', d.gym._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ravi Kumar\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"phone\": \"+919876543210\",\n  \"gymName\": \"Iron Temple Gym\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/register"
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  const d = j.data || j;",
+                  "  if (d.accessToken) pm.collectionVariables.set('accessToken', d.accessToken);",
+                  "  if (d.refreshToken) pm.collectionVariables.set('refreshToken', d.refreshToken);",
+                  "  if (d.user && d.user._id) pm.collectionVariables.set('userId', d.user._id);",
+                  "  if (d.user && d.user.gymId) pm.collectionVariables.set('gymId', String(d.user.gymId));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  const d = j.data || j;",
+                  "  if (d.accessToken) pm.collectionVariables.set('accessToken', d.accessToken);",
+                  "  if (d.refreshToken) pm.collectionVariables.set('refreshToken', d.refreshToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/refresh"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/logout"
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/forgot-password"
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"paste-reset-token-here\",\n  \"password\": \"NewSecret123!\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/reset-password"
+          }
+        },
+        {
+          "name": "OTP Request",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"purpose\": \"login\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/otp/request"
+          }
+        },
+        {
+          "name": "OTP Verify",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  const d = j.data || j;",
+                  "  if (d.accessToken) pm.collectionVariables.set('accessToken', d.accessToken);",
+                  "  if (d.refreshToken) pm.collectionVariables.set('refreshToken', d.refreshToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"otp\": \"123456\",\n  \"purpose\": \"login\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/otp/verify"
+          }
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/auth/me"
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{password}}\",\n  \"newPassword\": \"NewerSecret123!\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/change-password"
+          }
+        },
+        {
+          "name": "Logout All Devices",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/auth/logout-all"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Users",
+      "item": [
+        {
+          "name": "Update My Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Gym-Id", "value": "{{gymId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ravi Kumar\",\n  \"phone\": \"+919876543210\",\n  \"memberProfile\": {\n    \"dateOfBirth\": \"1995-06-15\",\n    \"gender\": \"male\",\n    \"heightCm\": 178,\n    \"weightKg\": 72,\n    \"goals\": [\"fat_loss\", \"strength\"],\n    \"emergencyContact\": { \"name\": \"Anita\", \"phone\": \"+919811122233\" }\n  }\n}"
+            },
+            "url": "{{baseUrl}}/users/me"
+          }
+        },
+        {
+          "name": "Upload Avatar",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "avatar",
+                  "type": "file",
+                  "src": [],
+                  "description": "JPEG/PNG/WEBP/GIF, max 5MB"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/users/me/avatar"
+          }
+        },
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/users?page=1&limit=20&role=member&status=active&search=",
+              "host": ["{{baseUrl}}"],
+              "path": ["users"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "role", "value": "member" },
+                { "key": "status", "value": "active" },
+                { "key": "search", "value": "" },
+                { "key": "gymId", "value": "{{gymId}}", "disabled": true },
+                { "key": "sort", "value": "createdAt", "disabled": true },
+                { "key": "order", "value": "desc", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create User (member/trainer)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  const d = j.data || j;",
+                  "  const id = d._id || (d.user && d.user._id);",
+                  "  if (id) {",
+                  "    pm.collectionVariables.set('userId', id);",
+                  "    pm.collectionVariables.set('memberId', id);",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Gym-Id", "value": "{{gymId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Neha Kapoor\",\n  \"email\": \"neha@example.com\",\n  \"password\": \"Member123!\",\n  \"phone\": \"+919700011122\",\n  \"role\": \"member\",\n  \"gymId\": \"{{gymId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/users"
+          }
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": "{{baseUrl}}/users/{{userId}}"
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Gym-Id", "value": "{{gymId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Neha Kapoor\",\n  \"phone\": \"+919700011122\",\n  \"status\": \"active\"\n}"
+            },
+            "url": "{{baseUrl}}/users/{{userId}}"
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": "{{baseUrl}}/users/{{userId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Gyms",
+      "item": [
+        {
+          "name": "My Gym",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const j = pm.response.json();",
+                  "  const d = j.data || j;",
+                  "  if (d._id) pm.collectionVariables.set('gymId', d._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/gyms/me"
+          }
+        },
+        {
+          "name": "List Gyms (super_admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/gyms?page=1&limit=20&status=active",
+              "host": ["{{baseUrl}}"],
+              "path": ["gyms"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "status", "value": "active" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Gym by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/gyms/{{gymId}}"
+          }
+        },
+        {
+          "name": "Update Gym",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Iron Temple Gym\",\n  \"email\": \"contact@irontemplate.com\",\n  \"phone\": \"+919812345678\",\n  \"address\": {\n    \"line1\": \"12 MG Road\",\n    \"city\": \"Bengaluru\",\n    \"state\": \"KA\",\n    \"pincode\": \"560001\",\n    \"country\": \"IN\"\n  },\n  \"geo\": { \"lat\": 12.9716, \"lng\": 77.5946 }\n}"
+            },
+            "url": "{{baseUrl}}/gyms/{{gymId}}"
+          }
+        },
+        {
+          "name": "Update Branding",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"primaryColor\": \"#D90429\",\n  \"secondaryColor\": \"#0A0A0C\",\n  \"tagline\": \"Train hard. Live strong.\"\n}"
+            },
+            "url": "{{baseUrl}}/gyms/{{gymId}}/branding"
+          }
+        },
+        {
+          "name": "Update Settings",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"timezone\": \"Asia/Kolkata\",\n  \"allowMemberSelfCheckin\": true,\n  \"membershipExpiryReminderDays\": 7,\n  \"workingHours\": { \"open\": \"06:00\", \"close\": \"22:00\" }\n}"
+            },
+            "url": "{{baseUrl}}/gyms/{{gymId}}/settings"
+          }
+        },
+        {
+          "name": "Upload Logo",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "logo", "type": "file", "src": [] }
+              ]
+            },
+            "url": "{{baseUrl}}/gyms/{{gymId}}/logo"
+          }
+        },
+        {
+          "name": "Upload Cover",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "cover", "type": "file", "src": [] }
+              ]
+            },
+            "url": "{{baseUrl}}/gyms/{{gymId}}/cover"
+          }
+        },
+        {
+          "name": "Update Gym Status (super_admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"active\"\n}"
+            },
+            "url": "{{baseUrl}}/gyms/{{gymId}}/status"
+          }
+        },
+        {
+          "name": "Delete Gym (super_admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/gyms/{{gymId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Memberships",
+      "item": [
+        {
+          "name": "List Plans",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/memberships/plans?page=1&limit=20&isActive=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["memberships", "plans"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "isActive", "value": "true" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Plan",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": "{{baseUrl}}/memberships/plans/{{planId}}"
+          }
+        },
+        {
+          "name": "Create Plan",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  const d = j.data || j;",
+                  "  if (d._id) pm.collectionVariables.set('planId', d._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Gym-Id", "value": "{{gymId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Gold Quarterly\",\n  \"description\": \"3-month unlimited access\",\n  \"durationDays\": 90,\n  \"pricePaise\": 999900,\n  \"features\": [\"gym_access\", \"locker\", \"group_classes\"],\n  \"trainerIncluded\": false,\n  \"isActive\": true\n}"
+            },
+            "url": "{{baseUrl}}/memberships/plans"
+          }
+        },
+        {
+          "name": "Update Plan",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Gym-Id", "value": "{{gymId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Gold Quarterly\",\n  \"pricePaise\": 899900,\n  \"isActive\": true\n}"
+            },
+            "url": "{{baseUrl}}/memberships/plans/{{planId}}"
+          }
+        },
+        {
+          "name": "Delete Plan",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": "{{baseUrl}}/memberships/plans/{{planId}}"
+          }
+        },
+        {
+          "name": "List Subscriptions",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/memberships/subscriptions?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["memberships", "subscriptions"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "memberId", "value": "{{memberId}}", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "My Current Subscription",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": "{{baseUrl}}/memberships/subscriptions/me/current"
+          }
+        },
+        {
+          "name": "Create Subscription",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  const d = j.data || j;",
+                  "  if (d._id) pm.collectionVariables.set('subscriptionId', d._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Gym-Id", "value": "{{gymId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"{{memberId}}\",\n  \"planId\": \"{{planId}}\",\n  \"startDate\": \"2026-07-29\",\n  \"autoRenew\": true,\n  \"markPaid\": true\n}"
+            },
+            "url": "{{baseUrl}}/memberships/subscriptions"
+          }
+        },
+        {
+          "name": "Cancel Subscription",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": "{{baseUrl}}/memberships/subscriptions/{{subscriptionId}}/cancel"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Trainers",
+      "item": [
+        {
+          "name": "List Trainers",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/trainers?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["trainers"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "My Trainer (member)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": "{{baseUrl}}/trainers/me/trainer"
+          }
+        },
+        {
+          "name": "My Members (trainer)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/trainers/me/members?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["trainers", "me", "members"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Trainer Members (owner)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/trainers/{{trainerId}}/members?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["trainers", "{{trainerId}}", "members"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Assign Trainer",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Gym-Id", "value": "{{gymId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"{{memberId}}\",\n  \"trainerId\": \"{{trainerId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/trainers/assign"
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Fitness",
+      "item": [
+        {
+          "name": "List Workouts",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/fitness/workouts?page=1&limit=20&memberId={{memberId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["fitness", "workouts"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "memberId", "value": "{{memberId}}" },
+                { "key": "isActive", "value": "true", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Workout",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": "{{baseUrl}}/fitness/workouts/{{workoutId}}"
+          }
+        },
+        {
+          "name": "Create Workout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  const d = j.data || j;",
+                  "  if (d._id) pm.collectionVariables.set('workoutId', d._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Gym-Id", "value": "{{gymId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"{{memberId}}\",\n  \"title\": \"Push / Pull / Legs\",\n  \"description\": \"6-week hypertrophy block\",\n  \"days\": [\n    {\n      \"day\": \"Monday\",\n      \"focus\": \"Push\",\n      \"exercises\": [\n        {\n          \"name\": \"Bench Press\",\n          \"sets\": 4,\n          \"reps\": \"8-10\",\n          \"restSeconds\": 90,\n          \"notes\": \"RPE 8\"\n        }\n      ]\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/fitness/workouts"
+          }
+        },
+        {
+          "name": "Update Workout",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Gym-Id", "value": "{{gymId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"PPL Updated\",\n  \"isActive\": true\n}"
+            },
+            "url": "{{baseUrl}}/fitness/workouts/{{workoutId}}"
+          }
+        },
+        {
+          "name": "Delete Workout",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": "{{baseUrl}}/fitness/workouts/{{workoutId}}"
+          }
+        },
+        {
+          "name": "List Diets",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/fitness/diets?page=1&limit=20&memberId={{memberId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["fitness", "diets"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "memberId", "value": "{{memberId}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Diet",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": "{{baseUrl}}/fitness/diets/{{dietId}}"
+          }
+        },
+        {
+          "name": "Create Diet",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  const d = j.data || j;",
+                  "  if (d._id) pm.collectionVariables.set('dietId', d._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Gym-Id", "value": "{{gymId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"{{memberId}}\",\n  \"title\": \"Cutting 2200 kcal\",\n  \"targetCalories\": 2200,\n  \"notes\": \"High protein\",\n  \"meals\": [\n    {\n      \"name\": \"Breakfast\",\n      \"time\": \"08:00\",\n      \"items\": [\n        {\n          \"food\": \"Oats\",\n          \"quantity\": \"80g\",\n          \"calories\": 300,\n          \"protein\": 12,\n          \"carbs\": 54,\n          \"fat\": 6\n        }\n      ]\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/fitness/diets"
+          }
+        },
+        {
+          "name": "Update Diet",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Gym-Id", "value": "{{gymId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"targetCalories\": 2100,\n  \"isActive\": true\n}"
+            },
+            "url": "{{baseUrl}}/fitness/diets/{{dietId}}"
+          }
+        },
+        {
+          "name": "Delete Diet",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": "{{baseUrl}}/fitness/diets/{{dietId}}"
+          }
+        },
+        {
+          "name": "List Progress",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/fitness/progress?page=1&limit=20&memberId={{memberId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["fitness", "progress"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "memberId", "value": "{{memberId}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Progress",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  const d = j.data || j;",
+                  "  if (d._id) pm.collectionVariables.set('progressId', d._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Gym-Id", "value": "{{gymId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"{{memberId}}\",\n  \"date\": \"2026-07-29\",\n  \"weightKg\": 71.5,\n  \"bodyFatPct\": 16.2,\n  \"measurements\": {\n    \"chest\": 98,\n    \"waist\": 78,\n    \"hips\": 95,\n    \"arms\": 36,\n    \"thighs\": 56\n  },\n  \"notes\": \"Feeling strong\"\n}"
+            },
+            "url": "{{baseUrl}}/fitness/progress"
+          }
+        },
+        {
+          "name": "Delete Progress",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": "{{baseUrl}}/fitness/progress/{{progressId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Attendance",
+      "item": [
+        {
+          "name": "List Attendance",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/attendance?page=1&limit=20&from=2026-07-01&to=2026-07-29",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "memberId", "value": "{{memberId}}", "disabled": true },
+                { "key": "status", "value": "checked_in", "disabled": true },
+                { "key": "from", "value": "2026-07-01" },
+                { "key": "to", "value": "2026-07-29" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Check In",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Gym-Id", "value": "{{gymId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"{{memberId}}\",\n  \"source\": \"staff\"\n}"
+            },
+            "url": "{{baseUrl}}/attendance/check-in"
+          }
+        },
+        {
+          "name": "Check Out",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Gym-Id", "value": "{{gymId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"{{memberId}}\",\n  \"source\": \"qr\"\n}"
+            },
+            "url": "{{baseUrl}}/attendance/check-out"
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Payments",
+      "item": [
+        {
+          "name": "List Payments",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/payments?page=1&limit=20&status=paid",
+              "host": ["{{baseUrl}}"],
+              "path": ["payments"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "memberId", "value": "{{memberId}}", "disabled": true },
+                { "key": "status", "value": "paid" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Checkout",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Gym-Id", "value": "{{gymId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planId\": \"{{planId}}\",\n  \"memberId\": \"{{memberId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/payments/checkout"
+          }
+        },
+        {
+          "name": "Verify Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Gym-Id", "value": "{{gymId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"order_NXyz123\",\n  \"paymentId\": \"pay_NXyz456\",\n  \"signature\": \"razorpay_signature_hex\"\n}"
+            },
+            "url": "{{baseUrl}}/payments/verify"
+          }
+        },
+        {
+          "name": "Refund Payment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": "{{baseUrl}}/payments/{{paymentId}}/refund"
+          }
+        },
+        {
+          "name": "List Invoices",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/payments/invoices?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["payments", "invoices"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Invoice",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": "{{baseUrl}}/payments/invoices/{{invoiceId}}"
+          }
+        },
+        {
+          "name": "Razorpay Webhook",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-razorpay-signature", "value": "paste-hmac-signature" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"payment.captured\",\n  \"payload\": {\n    \"payment\": {\n      \"entity\": {\n        \"id\": \"pay_xxx\",\n        \"order_id\": \"order_xxx\"\n      }\n    }\n  }\n}"
+            },
+            "url": "{{baseUrl}}/payments/webhook"
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Feed",
+      "item": [
+        {
+          "name": "List Feed",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/feed?page=1&limit=20&announcementsOnly=false",
+              "host": ["{{baseUrl}}"],
+              "path": ["feed"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "announcementsOnly", "value": "false" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Post",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": "{{baseUrl}}/feed/{{feedId}}"
+          }
+        },
+        {
+          "name": "Create Post",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  const d = j.data || j;",
+                  "  if (d._id) pm.collectionVariables.set('feedId', d._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "content",
+                  "value": "Gym closed this Sunday for maintenance",
+                  "type": "text"
+                },
+                {
+                  "key": "isAnnouncement",
+                  "value": "true",
+                  "type": "text"
+                },
+                {
+                  "key": "images",
+                  "type": "file",
+                  "src": [],
+                  "description": "Optional, up to 6 images"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/feed"
+          }
+        },
+        {
+          "name": "Delete Post",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": "{{baseUrl}}/feed/{{feedId}}"
+          }
+        },
+        {
+          "name": "Toggle Like",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": "{{baseUrl}}/feed/{{feedId}}/like"
+          }
+        },
+        {
+          "name": "Add Comment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  const d = j.data || j;",
+                  "  if (d._id) pm.collectionVariables.set('commentId', d._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Gym-Id", "value": "{{gymId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Looking forward to the new equipment!\"\n}"
+            },
+            "url": "{{baseUrl}}/feed/{{feedId}}/comments"
+          }
+        },
+        {
+          "name": "Delete Comment",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": "{{baseUrl}}/feed/{{feedId}}/comments/{{commentId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Chat",
+      "item": [
+        {
+          "name": "List Conversations",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/chat/conversations?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "conversations"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Open Conversation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  const d = j.data || j;",
+                  "  if (d._id) pm.collectionVariables.set('conversationId', d._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Gym-Id", "value": "{{gymId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/chat/conversations"
+          }
+        },
+        {
+          "name": "List Messages",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/chat/conversations/{{conversationId}}/messages?page=1&limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "conversations", "{{conversationId}}", "messages"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "50" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Gym-Id", "value": "{{gymId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Can we reschedule tomorrow's session?\"\n}"
+            },
+            "url": "{{baseUrl}}/chat/conversations/{{conversationId}}/messages"
+          }
+        },
+        {
+          "name": "Mark Read",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": "{{baseUrl}}/chat/conversations/{{conversationId}}/read"
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Notifications",
+      "item": [
+        {
+          "name": "List Notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications?page=1&limit=20&unread=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "unread", "value": "true" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mark All Read",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/notifications/read-all"
+          }
+        },
+        {
+          "name": "Mark One Read",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/notifications/{{notificationId}}/read"
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. Reports",
+      "item": [
+        {
+          "name": "Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": "{{baseUrl}}/reports/dashboard"
+          }
+        },
+        {
+          "name": "Platform (super_admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/reports/platform"
+          }
+        },
+        {
+          "name": "Gym Report",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": "{{baseUrl}}/reports/gym"
+          }
+        },
+        {
+          "name": "Revenue",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gym-Id", "value": "{{gymId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/reports/revenue?months=6",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "revenue"],
+              "query": [{ "key": "months", "value": "6" }]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
