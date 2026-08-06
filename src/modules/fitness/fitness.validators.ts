@@ -27,6 +27,49 @@ export const createWorkoutSchema = z.object({
   days: z.array(day).default([]),
 });
 
+const BUILTIN_TEMPLATE_IDS = [
+  'default_weekly',
+  'push_pull_legs',
+  'daily_full_body',
+  'strength_3day',
+] as const;
+
+export const bulkAssignWorkoutSchema = z
+  .object({
+    memberIds: z.array(objectId).min(1).max(100),
+    title: z.string().min(2).max(160),
+    description: z.string().max(2000).optional(),
+    /** Custom Mongo id OR built-in slug. */
+    templateId: z.string().min(1).optional(),
+    days: z.array(day).optional(),
+    replaceActive: z.boolean().optional().default(true),
+  })
+  .refine((v) => (v.days && v.days.length > 0) || !!v.templateId, {
+    message: 'Provide templateId or a non-empty days array',
+  });
+
+export const createWorkoutTemplateSchema = z
+  .object({
+    title: z.string().min(2).max(160),
+    description: z.string().max(2000).optional(),
+    cadence: z.enum(['weekly', 'daily', 'custom']).optional().default('weekly'),
+    days: z.array(day).optional().default([]),
+    starterId: z.enum(BUILTIN_TEMPLATE_IDS).optional(),
+  })
+  .refine((v) => (v.days && v.days.length > 0) || !!v.starterId, {
+    message: 'Provide days or a starterId',
+  });
+
+export const updateWorkoutTemplateSchema = z
+  .object({
+    title: z.string().min(2).max(160).optional(),
+    description: z.string().max(2000).optional(),
+    cadence: z.enum(['weekly', 'daily', 'custom']).optional(),
+    days: z.array(day).optional(),
+    isActive: z.boolean().optional(),
+  })
+  .strict();
+
 export const updateWorkoutSchema = z
   .object({
     title: z.string().min(2).max(160).optional(),
@@ -95,6 +138,9 @@ export const createProgressSchema = z.object({
 
 export type ListQuery = z.infer<typeof listQuery>;
 export type CreateWorkoutInput = z.infer<typeof createWorkoutSchema>;
+export type BulkAssignWorkoutInput = z.infer<typeof bulkAssignWorkoutSchema>;
+export type CreateWorkoutTemplateInput = z.infer<typeof createWorkoutTemplateSchema>;
+export type UpdateWorkoutTemplateInput = z.infer<typeof updateWorkoutTemplateSchema>;
 export type UpdateWorkoutInput = z.infer<typeof updateWorkoutSchema>;
 export type CreateDietInput = z.infer<typeof createDietSchema>;
 export type UpdateDietInput = z.infer<typeof updateDietSchema>;

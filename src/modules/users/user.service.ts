@@ -75,7 +75,9 @@ export const userService = {
             },
           }
         : {}),
-      ...(data.role === ROLES.MEMBER ? { memberProfile: {} } : {}),
+      ...(data.role === ROLES.MEMBER
+        ? { memberProfile: { allowTwoSessions: data.memberProfile?.allowTwoSessions ?? false } }
+        : {}),
     });
     await user.setPassword(data.password);
     await user.save();
@@ -84,7 +86,7 @@ export const userService = {
 
   async update(ctx: Ctx, id: string, data: UpdateUserInput): Promise<UserDocument> {
     const user = await this.getById(ctx, id);
-    const { trainerProfile, staffProfile, ...rest } = data;
+    const { trainerProfile, staffProfile, memberProfile, ...rest } = data;
     Object.assign(user, rest);
     if (trainerProfile && user.role === ROLES.TRAINER) {
       user.trainerProfile = {
@@ -97,6 +99,12 @@ export const userService = {
         ...(user.staffProfile ?? { jobTitle: 'Staff' }),
         ...staffProfile,
       } as typeof user.staffProfile;
+    }
+    if (memberProfile && user.role === ROLES.MEMBER) {
+      user.memberProfile = {
+        ...(user.memberProfile ?? { gender: 'unspecified', goals: [] }),
+        ...memberProfile,
+      } as typeof user.memberProfile;
     }
     await user.save();
     return user;
@@ -181,6 +189,26 @@ export const userService = {
     });
     await doc.save();
     return doc;
+  },
+
+  /** Owner/staff uploads a member profile photo into Cloudinary "Members Profile/{memberId}". */
+  async setMemberAvatar(ctx: Ctx, memberId: string, file: UploadedFile | undefined): Promise<UserDocument> {
+    if (!file) throw ApiError.badRequest('No image uploaded');
+    const member = await this.getById(ctx, memberId);
+    if (member.role !== ROLES.MEMBER) throw ApiError.badRequest('Avatar upload is only for members');
+
+    if (member.avatar?.key) await storageService.delete(member.avatar.key);
+
+    const id = String(member._id);
+    member.avatar = await storageService.upload({
+      buffer: file.buffer,
+      originalName: file.originalname || 'avatar.jpg',
+      mimeType: file.mimetype,
+      folder: `Members Profile/${id}`,
+      publicId: 'avatar',
+    });
+    await member.save();
+    return member;
   },
 
   async remove(ctx: Ctx, id: string): Promise<{ deleted: true }> {

@@ -37,6 +37,8 @@ export interface MemberProfile {
   };
   emergencyContact?: { name?: string; phone?: string };
   assignedTrainer?: Types.ObjectId | null;
+  /** When true, this member may check in/out twice a day (AM + PM sessions). Default: AM-only. */
+  allowTwoSessions?: boolean;
 }
 
 export interface IUser {
@@ -103,6 +105,7 @@ const memberProfileSchema = new Schema<MemberProfile>(
     },
     emergencyContact: { name: String, phone: String },
     assignedTrainer: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    allowTwoSessions: { type: Boolean, default: false },
   },
   { _id: false },
 );

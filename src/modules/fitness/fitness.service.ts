@@ -1,4 +1,4 @@
-import type { FilterQuery, Model, Types, HydratedDocument } from 'mongoose';
+import { Types, type FilterQuery, type Model, type HydratedDocument } from 'mongoose';
 import { WorkoutPlan, type IWorkoutPlan, type WorkoutDay, type Exercise } from './workoutPlan.model';
 import { DietPlan, type IDietPlan } from './dietPlan.model';
 import { ProgressLog, type ProgressLogDocument } from './progressLog.model';
@@ -14,7 +14,14 @@ import { ROLES, type NotificationType } from '../../config/constants';
 import { parseListQuery } from '../../utils/pagination';
 import { notificationService } from '../notifications/notification.service';
 import type { Ctx, Paginated } from '../../types/index';
-import type { CreateProgressInput } from './fitness.validators';
+import type {
+  CreateProgressInput,
+  BulkAssignWorkoutInput,
+  CreateWorkoutTemplateInput,
+  UpdateWorkoutTemplateInput,
+} from './fitness.validators';
+import { getWorkoutTemplate, listWorkoutTemplates as listBuiltinStarters } from './workoutTemplates';
+import { WorkoutTemplate } from './workoutTemplate.model';
 
 const DEFAULT_KEY = 'member_default_weekly';
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
@@ -103,6 +110,7 @@ function scopeFilter(ctx: Ctx, q: ListLike, extra: Record<string, unknown> = {})
   const filter: Record<string, unknown> = { gym: requireTenant(ctx), ...extra };
   if (ctx.user.role === ROLES.MEMBER) filter.member = ctx.user._id;
   else if (q.memberId) filter.member = q.memberId;
+  else if (ctx.user.role === ROLES.TRAINER) filter.trainer = ctx.user._id;
   return filter;
 }
 
@@ -150,9 +158,10 @@ function makeCrud<TDoc extends PlanBase>(model: Model<TDoc>, label: string, noti
         gym: requireTenant(ctx),
         user: member,
         type: notifyType,
+        event: notifyType === 'workout' ? 'trainer.workout_assigned' : notifyType === 'diet' ? 'trainer.diet_updated' : undefined,
         title: `New ${label.toLowerCase()} assigned`,
         body: data.title,
-        data: { id: String((doc as Doc)._id) },
+        data: { id: String((doc as Doc)._id), deepLink: notifyType === 'workout' ? 'Workout' : 'Nutrition' },
       });
       return doc as Doc;
     },
@@ -296,6 +305,206 @@ async function ensureDefaultSchedule() {
 export const fitnessService = {
   workouts,
   diets,
+
+  /** Built-in starters used when creating a custom template. */
+  listBuiltinStarters() {
+    return listBuiltinStarters();
+  },
+
+  /** Custom templates for this trainer (gym-scoped). */
+  async listCustomTemplates(ctx: Ctx) {
+    const gym = requireTenant(ctx);
+    const filter: Record<string, unknown> = { gym, deletedAt: null, isActive: true };
+    if (ctx.user.role === ROLES.TRAINER) filter.trainer = ctx.user._id;
+    const docs = await WorkoutTemplate.find(filter).sort({ updatedAt: -1 }).lean();
+    return docs.map((d) => ({
+      id: String(d._id),
+      _id: String(d._id),
+      name: d.title,
+      title: d.title,
+      description: d.description,
+      cadence: d.cadence,
+      dayCount: d.days?.length ?? 0,
+      days: d.days,
+      preview: (d.days ?? []).map((day) => ({
+        day: day.day,
+        focus: day.focus,
+        exercises: day.exercises?.length ?? 0,
+      })),
+      isCustom: true,
+      createdAt: d.createdAt,
+      updatedAt: d.updatedAt,
+    }));
+  },
+
+  async getCustomTemplate(ctx: Ctx, id: string) {
+    const gym = requireTenant(ctx);
+    const filter: Record<string, unknown> = { _id: id, gym, deletedAt: null };
+    if (ctx.user.role === ROLES.TRAINER) filter.trainer = ctx.user._id;
+    const doc = await WorkoutTemplate.findOne(filter);
+    if (!doc) throw ApiError.notFound('Workout template not found');
+    return doc;
+  },
+
+  async createCustomTemplate(ctx: Ctx, input: CreateWorkoutTemplateInput) {
+    const gym = requireTenant(ctx);
+    let days: WorkoutDay[] = [];
+    if (input.days?.length) {
+      days = input.days.map((d) => ({
+        day: d.day,
+        focus: d.focus ?? '',
+        exercises: (d.exercises ?? []).map((e) => ({
+          name: e.name,
+          sets: e.sets ?? 3,
+          reps: e.reps ?? '10',
+          restSeconds: e.restSeconds ?? 60,
+          notes: e.notes ?? '',
+        })),
+      }));
+    } else if (input.starterId) {
+      const starter = getWorkoutTemplate(input.starterId);
+      if (!starter) throw ApiError.badRequest('Unknown starter template');
+      days = starter.buildDays();
+    }
+    if (!days.length) throw ApiError.badRequest('Add at least one workout day');
+
+    return WorkoutTemplate.create({
+      gym,
+      trainer: ctx.user._id,
+      title: input.title,
+      description: input.description ?? '',
+      cadence: input.cadence ?? 'weekly',
+      days,
+      isActive: true,
+    });
+  },
+
+  async updateCustomTemplate(ctx: Ctx, id: string, input: UpdateWorkoutTemplateInput) {
+    const doc = await this.getCustomTemplate(ctx, id);
+    if (input.title !== undefined) doc.title = input.title;
+    if (input.description !== undefined) doc.description = input.description;
+    if (input.cadence !== undefined) doc.cadence = input.cadence;
+    if (input.days !== undefined) {
+      doc.days = input.days.map((d) => ({
+        day: d.day,
+        focus: d.focus ?? '',
+        exercises: (d.exercises ?? []).map((e) => ({
+          name: e.name,
+          sets: e.sets ?? 3,
+          reps: e.reps ?? '10',
+          restSeconds: e.restSeconds ?? 60,
+          notes: e.notes ?? '',
+        })),
+      }));
+    }
+    if (input.isActive !== undefined) doc.isActive = input.isActive;
+    await doc.save();
+    return doc;
+  },
+
+  async removeCustomTemplate(ctx: Ctx, id: string) {
+    const doc = await this.getCustomTemplate(ctx, id);
+    doc.deletedAt = new Date();
+    doc.isActive = false;
+    await doc.save();
+    return { deleted: true as const };
+  },
+
+  /**
+   * Assign the same workout plan to many members (trainer multi-select).
+   * Optionally deactivates each member's previous active plans.
+   */
+  async bulkAssignWorkouts(ctx: Ctx, input: BulkAssignWorkoutInput) {
+    const gym = requireTenant(ctx);
+    const trainerId = ctx.user._id;
+    const replaceActive = input.replaceActive !== false;
+
+    let days = input.days ?? [];
+    if ((!days || days.length === 0) && input.templateId) {
+      const tid = input.templateId;
+      const builtin = getWorkoutTemplate(tid);
+      if (builtin) {
+        days = builtin.buildDays();
+      } else if (Types.ObjectId.isValid(tid)) {
+        const custom = await WorkoutTemplate.findOne({
+          _id: tid,
+          gym,
+          deletedAt: null,
+        });
+        if (!custom) throw ApiError.notFound('Workout template not found');
+        if (
+          ctx.user.role === ROLES.TRAINER &&
+          String(custom.trainer) !== String(trainerId)
+        ) {
+          throw ApiError.forbidden('This template does not belong to you');
+        }
+        days = custom.days as WorkoutDay[];
+        if (!input.title) {
+          // title is required by schema, but keep description fallback
+        }
+      } else {
+        throw ApiError.badRequest('Unknown workout template');
+      }
+    }
+    if (!days.length) throw ApiError.badRequest('Workout days are required');
+
+    const uniqueIds = [...new Set(input.memberIds.map(String))];
+    const members = await User.find({
+      _id: { $in: uniqueIds },
+      gym,
+      role: ROLES.MEMBER,
+      deletedAt: null,
+    }).select('_id name memberProfile.assignedTrainer');
+
+    if (members.length !== uniqueIds.length) {
+      throw ApiError.badRequest('One or more members were not found in this gym');
+    }
+
+    if (ctx.user.role === ROLES.TRAINER) {
+      const notMine = members.filter(
+        (m) => String(m.memberProfile?.assignedTrainer ?? '') !== String(trainerId),
+      );
+      if (notMine.length) {
+        throw ApiError.forbidden('You can only assign workouts to your assigned members');
+      }
+    }
+
+    const created: HydratedDocument<IWorkoutPlan>[] = [];
+    for (const member of members) {
+      if (replaceActive) {
+        await WorkoutPlan.updateMany(
+          { gym, member: member._id, deletedAt: null, isActive: true },
+          { $set: { isActive: false } },
+        );
+      }
+      const doc = await WorkoutPlan.create({
+        gym,
+        member: member._id,
+        trainer: trainerId,
+        title: input.title,
+        description: input.description ?? '',
+        days,
+        isActive: true,
+      });
+      created.push(doc);
+      await notificationService.notify({
+        gym,
+        user: member._id,
+        type: 'workout',
+        title: 'New workout plan assigned',
+        body: input.title,
+        data: { id: String(doc._id) },
+      });
+    }
+
+    return {
+      assigned: created.length,
+      planIds: created.map((d) => String(d._id)),
+      title: input.title,
+      templateId: input.templateId ?? null,
+      memberIds: uniqueIds,
+    };
+  },
 
   async seedDefaultWeekly() {
     return ensureDefaultSchedule();

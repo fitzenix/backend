@@ -36,7 +36,37 @@ function crudController(sub: CrudSub) {
   };
 }
 
-export const workoutController = crudController(fitnessService.workouts);
+export const workoutController = {
+  ...crudController(fitnessService.workouts),
+  templates: asyncHandler<AuthedRequest>(async (req, res) => {
+    const data = await fitnessService.listCustomTemplates(req);
+    sendSuccess(res, { data });
+  }),
+  templateStarters: asyncHandler<AuthedRequest>(async (_req, res) => {
+    const data = fitnessService.listBuiltinStarters();
+    sendSuccess(res, { data });
+  }),
+  getTemplate: asyncHandler<AuthedRequest>(async (req, res) => {
+    const data = await fitnessService.getCustomTemplate(req, req.params.id);
+    sendSuccess(res, { data });
+  }),
+  createTemplate: asyncHandler<AuthedRequest>(async (req, res) => {
+    const data = await fitnessService.createCustomTemplate(req, req.body);
+    sendCreated(res, { data, message: 'Workout template created' });
+  }),
+  updateTemplate: asyncHandler<AuthedRequest>(async (req, res) => {
+    const data = await fitnessService.updateCustomTemplate(req, req.params.id, req.body);
+    sendSuccess(res, { data, message: 'Workout template updated' });
+  }),
+  removeTemplate: asyncHandler<AuthedRequest>(async (req, res) => {
+    const data = await fitnessService.removeCustomTemplate(req, req.params.id);
+    sendSuccess(res, { data, message: 'Workout template removed' });
+  }),
+  bulkAssign: asyncHandler<AuthedRequest>(async (req, res) => {
+    const data = await fitnessService.bulkAssignWorkouts(req, req.body);
+    sendCreated(res, { data, message: `Assigned to ${data.assigned} member(s)` });
+  }),
+};
 export const dietController = crudController(fitnessService.diets);
 
 export const scheduleController = {

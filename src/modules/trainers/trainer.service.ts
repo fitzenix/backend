@@ -55,17 +55,19 @@ export const trainerService = {
         gym,
         user: trainer._id,
         type: 'system',
+        event: 'trainer.client_checkin',
         title: 'New member assigned',
         body: `${member.name} has been assigned to you.`,
-        data: { memberId: String(member._id) },
+        data: { memberId: String(member._id), deepLink: 'Members' },
       });
       await notificationService.notify({
         gym,
         user: member._id,
         type: 'system',
+        event: 'owner.trainer_assigned',
         title: 'Trainer assigned',
         body: `${trainer.name} is now your trainer.`,
-        data: { trainerId: String(trainer._id) },
+        data: { trainerId: String(trainer._id), deepLink: 'Profile' },
       });
     }
     return member;

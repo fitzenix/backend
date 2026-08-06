@@ -39,6 +39,13 @@ router.patch(
   validate({ params: idParam, body: updateUserSchema }),
   userController.update,
 );
+router.post(
+  '/:id/avatar',
+  authorize(ROLES.SUPER_ADMIN, ROLES.GYM_OWNER),
+  validate({ params: idParam }),
+  uploadImage('avatar'),
+  userController.uploadMemberAvatar,
+);
 router.delete('/:id', authorize(ROLES.SUPER_ADMIN, ROLES.GYM_OWNER), validate({ params: idParam }), userController.remove);
 
 export default router;

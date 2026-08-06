@@ -138,9 +138,10 @@ export const paymentService = {
       gym: payment.gym,
       user: payment.member,
       type: 'payment',
+      event: 'member.payment_success',
       title: 'Payment received',
       body: `We received your payment of ₹${(payment.amountPaise / 100).toFixed(2)}.`,
-      data: { paymentId: String(payment._id) },
+      data: { paymentId: String(payment._id), deepLink: 'PaymentHistory', amount: (payment.amountPaise / 100).toFixed(2) },
     });
     return payment;
   },

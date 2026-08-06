@@ -24,3 +24,13 @@ export const authLimiter: RateLimitRequestHandler = rateLimit({
   skip: () => env.isTest,
   handler: rejectWith('Too many attempts, please slow down.'),
 });
+
+/** Limit broadcast / bulk push endpoints to reduce abuse. */
+export const sendLimiter: RateLimitRequestHandler = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => env.isTest,
+  handler: rejectWith('Too many notification sends, please slow down.'),
+});

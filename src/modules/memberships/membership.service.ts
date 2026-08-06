@@ -156,8 +156,10 @@ export const membershipService = {
         gym,
         user: member._id,
         type: 'membership',
+        event: 'member.membership_renewed',
         title: 'Membership activated',
         body: `Your ${plan.name} membership is active until ${end.toDateString()}.`,
+        data: { deepLink: 'Plan' },
       });
     }
     return sub;
@@ -174,8 +176,10 @@ export const membershipService = {
       gym: sub.gym,
       user: sub.member,
       type: 'membership',
+      event: 'member.membership_renewed',
       title: 'Membership activated',
       body: `Your ${sub.planSnapshot?.name ?? 'membership'} is now active.`,
+      data: { deepLink: 'Plan' },
     });
     return sub;
   },

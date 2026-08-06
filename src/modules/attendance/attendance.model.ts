@@ -2,6 +2,7 @@ import { Schema, model, Types, type Model, type HydratedDocument } from 'mongoos
 import { ATTENDANCE_STATUS, type AttendanceStatus } from '../../config/constants';
 
 export type AttendanceSource = 'self' | 'staff' | 'qr';
+export type AttendanceSession = 'AM' | 'PM';
 
 export interface IAttendance {
   gym: Types.ObjectId;
@@ -10,6 +11,8 @@ export interface IAttendance {
   checkOutAt: Date | null;
   status: AttendanceStatus;
   source: AttendanceSource;
+  /** Which daily slot this visit falls in — enables the AM/PM two-session-a-day rule. */
+  session: AttendanceSession;
   recordedBy?: Types.ObjectId;
   durationMinutes: number | null;
   createdAt: Date;
@@ -32,6 +35,7 @@ const attendanceSchema = new Schema<IAttendance, AttendanceModel>(
       index: true,
     },
     source: { type: String, enum: ['self', 'staff', 'qr'], default: 'self' },
+    session: { type: String, enum: ['AM', 'PM'], default: 'AM' },
     recordedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     durationMinutes: { type: Number, default: null },
   },

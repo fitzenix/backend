@@ -63,9 +63,76 @@ export const NOTIFICATION_TYPES = {
   MEMBERSHIP: 'membership',
   CHAT: 'chat',
   WORKOUT: 'workout',
+  DIET: 'diet',
+  ATTENDANCE: 'attendance',
   ANNOUNCEMENT: 'announcement',
+  MARKETING: 'marketing',
+  REPORT: 'report',
 } as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];
+
+/** Fine-grained push event keys used for templates, prefs, deep links, analytics. */
+export const PUSH_EVENTS = {
+  // Owner
+  OWNER_NEW_MEMBER: 'owner.new_member',
+  OWNER_MEMBERSHIP_EXPIRING: 'owner.membership_expiring',
+  OWNER_PAYMENT_RECEIVED: 'owner.payment_received',
+  OWNER_LOW_ATTENDANCE: 'owner.low_attendance',
+  OWNER_TRAINER_ASSIGNED: 'owner.trainer_assigned',
+  OWNER_TRAINER_REMOVED: 'owner.trainer_removed',
+  OWNER_EXPENSE_ADDED: 'owner.expense_added',
+  OWNER_REVENUE_SUMMARY: 'owner.revenue_summary',
+  OWNER_DAILY_REPORT: 'owner.daily_report',
+  OWNER_WEEKLY_REPORT: 'owner.weekly_report',
+  OWNER_MONTHLY_REPORT: 'owner.monthly_report',
+  // Trainer
+  TRAINER_WORKOUT_ASSIGNED: 'trainer.workout_assigned',
+  TRAINER_CLIENT_CHECKIN: 'trainer.client_checkin',
+  TRAINER_WORKOUT_COMPLETED: 'trainer.workout_completed',
+  TRAINER_DIET_UPDATED: 'trainer.diet_updated',
+  TRAINER_MEMBER_MESSAGE: 'trainer.member_message',
+  TRAINER_NEW_SCHEDULE: 'trainer.new_schedule',
+  // Member
+  MEMBER_WELCOME: 'member.welcome',
+  MEMBER_MEMBERSHIP_EXPIRY: 'member.membership_expiry',
+  MEMBER_MEMBERSHIP_RENEWED: 'member.membership_renewed',
+  MEMBER_PAYMENT_SUCCESS: 'member.payment_success',
+  MEMBER_WORKOUT_REMINDER: 'member.workout_reminder',
+  MEMBER_DIET_REMINDER: 'member.diet_reminder',
+  MEMBER_WATER_REMINDER: 'member.water_reminder',
+  MEMBER_ATTENDANCE_MARKED: 'member.attendance_marked',
+  MEMBER_BMI_UPDATED: 'member.bmi_updated',
+  MEMBER_MEASUREMENT_UPDATED: 'member.measurement_updated',
+  MEMBER_NEW_OFFER: 'member.new_offer',
+  MEMBER_GYM_HOLIDAY: 'member.gym_holiday',
+  MEMBER_FESTIVAL_WISHES: 'member.festival_wishes',
+  MEMBER_CHECKIN_REMINDER: 'member.checkin_reminder',
+  MEMBER_BIRTHDAY: 'member.birthday',
+  // Super admin
+  SA_NEW_GYM: 'sa.new_gym',
+  SA_SUBSCRIPTION_PURCHASED: 'sa.subscription_purchased',
+  SA_SUBSCRIPTION_EXPIRED: 'sa.subscription_expired',
+  SA_FAILED_PAYMENT: 'sa.failed_payment',
+  SA_TRIAL_ENDING: 'sa.trial_ending',
+  SA_SERVER_ALERT: 'sa.server_alert',
+  SA_BACKUP_COMPLETED: 'sa.backup_completed',
+  SA_BACKUP_FAILED: 'sa.backup_failed',
+} as const;
+export type PushEvent = (typeof PUSH_EVENTS)[keyof typeof PUSH_EVENTS];
+
+export const PREFERENCE_KEYS = {
+  WORKOUT_REMINDER: 'workoutReminder',
+  DIET_REMINDER: 'dietReminder',
+  MARKETING: 'marketing',
+  OFFERS: 'offers',
+  ATTENDANCE: 'attendance',
+  PAYMENTS: 'payments',
+  MEMBERSHIP: 'membership',
+  SYSTEM_UPDATES: 'systemUpdates',
+  EMERGENCY_ALERTS: 'emergencyAlerts',
+  CHAT: 'chat',
+} as const;
+export type PreferenceKey = (typeof PREFERENCE_KEYS)[keyof typeof PREFERENCE_KEYS];
 
 export const CURRENCY = 'INR' as const;
 

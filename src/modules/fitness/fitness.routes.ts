@@ -9,7 +9,10 @@ import { idParam } from '../../validators/common';
 import {
   listQuery,
   createWorkoutSchema,
+  bulkAssignWorkoutSchema,
   updateWorkoutSchema,
+  createWorkoutTemplateSchema,
+  updateWorkoutTemplateSchema,
   createDietSchema,
   updateDietSchema,
   createProgressSchema,
@@ -23,6 +26,40 @@ router.use(authenticate, resolveTenant, requireTenant);
 
 // Member schedule (trainer plan OR default weekly rotation from MongoDB)
 router.get('/member-schedule', scheduleController.memberSchedule);
+
+// Custom workout templates + starters + bulk assign (before :id routes)
+router.get('/workout-templates', authorize(...STAFF), workoutController.templates);
+router.get('/workout-templates/starters', authorize(...STAFF), workoutController.templateStarters);
+router.post(
+  '/workout-templates',
+  authorize(...STAFF),
+  validate({ body: createWorkoutTemplateSchema }),
+  workoutController.createTemplate,
+);
+router.get(
+  '/workout-templates/:id',
+  authorize(...STAFF),
+  validate({ params: idParam }),
+  workoutController.getTemplate,
+);
+router.patch(
+  '/workout-templates/:id',
+  authorize(...STAFF),
+  validate({ params: idParam, body: updateWorkoutTemplateSchema }),
+  workoutController.updateTemplate,
+);
+router.delete(
+  '/workout-templates/:id',
+  authorize(...STAFF),
+  validate({ params: idParam }),
+  workoutController.removeTemplate,
+);
+router.post(
+  '/workouts/bulk',
+  authorize(...STAFF),
+  validate({ body: bulkAssignWorkoutSchema }),
+  workoutController.bulkAssign,
+);
 
 // Workout plans
 router.get('/workouts', validate({ query: listQuery }), workoutController.list);

@@ -27,6 +27,11 @@ export const attendanceController = {
     sendSuccess(res, { data: items, meta: paginationMeta({ page, limit, total }) });
   }),
 
+  status: asyncHandler<AuthedRequest>(async (req, res) => {
+    const data = await attendanceService.myStatus(req);
+    sendSuccess(res, { data, message: 'Attendance status' });
+  }),
+
   checkInQr: asyncHandler<AuthedRequest>(async (req, res) => {
     const data = await attendanceService.checkInQrInfo(req);
     sendSuccess(res, { data, message: 'Check-in QR ready' });

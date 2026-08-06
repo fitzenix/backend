@@ -32,6 +32,11 @@ export const createUserSchema = z.object({
       department: z.string().trim().max(80).optional(),
     })
     .optional(),
+  memberProfile: z
+    .object({
+      allowTwoSessions: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 export const updateUserSchema = z
@@ -52,6 +57,11 @@ export const updateUserSchema = z
       .object({
         jobTitle: z.string().trim().min(2).max(80).optional(),
         department: z.string().trim().max(80).optional(),
+      })
+      .optional(),
+    memberProfile: z
+      .object({
+        allowTwoSessions: z.boolean().optional(),
       })
       .optional(),
   })

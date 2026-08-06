@@ -1,5 +1,11 @@
 import type { FilterQuery, Types } from 'mongoose';
-import { Attendance, type IAttendance, type AttendanceDocument, type AttendanceSource } from './attendance.model';
+import {
+  Attendance,
+  type IAttendance,
+  type AttendanceDocument,
+  type AttendanceSource,
+  type AttendanceSession,
+} from './attendance.model';
 import { User } from '../users/user.model';
 import { Gym } from '../gyms/gym.model';
 import { ApiError } from '../../utils/ApiError';
@@ -40,6 +46,17 @@ const selfCheckinCache = new TTLCache<string, boolean>(1000, 5 * 60_000);
 function requireTenant(ctx: Ctx): string {
   if (!ctx.tenantId) throw ApiError.badRequest('A gym context is required');
   return ctx.tenantId;
+}
+
+function dayBounds(d: Date): { start: Date; end: Date } {
+  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const end = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+  return { start, end };
+}
+
+/** Before noon → AM session, otherwise PM. Drives the two-sessions-a-day rule. */
+function resolveSession(d: Date): AttendanceSession {
+  return d.getHours() < 12 ? 'AM' : 'PM';
 }
 
 async function resolveMember(ctx: Ctx, memberId?: string): Promise<Types.ObjectId> {
@@ -93,10 +110,40 @@ export const attendanceService = {
     const open = await Attendance.exists({ gym, member, status: ATTENDANCE_STATUS.CHECKED_IN });
     if (open) throw ApiError.conflict('An open check-in already exists');
 
+    const now = new Date();
+    const { start, end } = dayBounds(now);
+    const [memberDoc, todaysCount] = await Promise.all([
+      User.findById(member).select('memberProfile.allowTwoSessions').lean(),
+      Attendance.countDocuments({ gym, member, checkInAt: { $gte: start, $lte: end } }),
+    ]);
+    const allowTwoSessions = memberDoc?.memberProfile?.allowTwoSessions === true;
+    const maxSessions = allowTwoSessions ? 2 : 1;
+    if (todaysCount >= maxSessions) {
+      throw ApiError.conflict(
+        allowTwoSessions
+          ? 'Both check-ins for today have already been used'
+          : 'Already checked in today. Ask your gym to enable two sessions a day for a second check-in.',
+      );
+    }
+
+    const session = resolveSession(now);
+    if (todaysCount > 0) {
+      const usedThisSession = await Attendance.exists({
+        gym,
+        member,
+        session,
+        checkInAt: { $gte: start, $lte: end },
+      });
+      if (usedThisSession) {
+        throw ApiError.conflict(`Already checked in for the ${session} session today`);
+      }
+    }
+
     return Attendance.create({
       gym,
       member,
-      checkInAt: new Date(),
+      checkInAt: now,
+      session,
       source: source ?? (isSelf ? 'self' : 'staff'),
       recordedBy: ctx.user._id,
     });
@@ -173,6 +220,56 @@ export const attendanceService = {
       Attendance.countDocuments(filter),
     ]);
     return { items, page, limit, total };
+  },
+
+  /** Self-service status used by the member's QR scan flow to decide check-in vs check-out. */
+  async myStatus(ctx: Ctx) {
+    if (ctx.user.role !== ROLES.MEMBER) {
+      throw ApiError.forbidden('Only members have a self check-in status');
+    }
+    const gym = requireTenant(ctx);
+    const member = ctx.user._id;
+
+    const [memberDoc, todays] = await Promise.all([
+      User.findById(member).select('memberProfile.allowTwoSessions').lean(),
+      (async () => {
+        const { start, end } = dayBounds(new Date());
+        return Attendance.find({ gym, member, checkInAt: { $gte: start, $lte: end } })
+          .sort({ checkInAt: 1 })
+          .lean();
+      })(),
+    ]);
+
+    const allowTwoSessions = memberDoc?.memberProfile?.allowTwoSessions === true;
+    const maxSessions = allowTwoSessions ? 2 : 1;
+    const open = todays.find(r => r.status === ATTENDANCE_STATUS.CHECKED_IN) ?? null;
+    const currentSession = resolveSession(new Date());
+    const usedSessions = todays.map(r => r.session);
+
+    let canCheckIn = false;
+    let blockedReason: string | null = null;
+    if (open) {
+      blockedReason = 'You have an open check-in — check out first.';
+    } else if (todays.length >= maxSessions) {
+      blockedReason = allowTwoSessions
+        ? 'Both check-ins for today have already been used.'
+        : 'Already checked in today. Ask your gym to enable two sessions a day.';
+    } else if (usedSessions.includes(currentSession)) {
+      blockedReason = `You already completed the ${currentSession} session today.`;
+    } else {
+      canCheckIn = true;
+    }
+
+    return {
+      open,
+      todayCount: todays.length,
+      allowTwoSessions,
+      maxSessions,
+      currentSession,
+      canCheckIn,
+      canCheckOut: !!open,
+      blockedReason,
+    };
   },
 
   async checkInQrInfo(ctx: Ctx) {

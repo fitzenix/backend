@@ -33,6 +33,7 @@ const OWNER = [ROLES.SUPER_ADMIN, ROLES.GYM_OWNER] as const;
 router.use(authenticate, resolveTenant, requireTenant);
 
 router.get('/', validate({ query: listQuery }), attendanceController.list);
+router.get('/status', attendanceController.status);
 router.post('/check-in', validate({ body: checkSchema }), attendanceController.checkIn);
 router.post(
   '/bulk-check-in',

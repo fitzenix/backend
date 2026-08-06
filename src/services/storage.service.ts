@@ -11,16 +11,19 @@ export interface UploadInput {
   originalName: string;
   mimeType: string;
   folder?: string;
+  /** Stable Cloudinary public id (without folder). Enables overwrite for avatars. */
+  publicId?: string;
 }
 
 /**
  * Storage abstraction. Swappable driver: `local` (writes to UPLOAD_DIR, served
- * via /uploads) or `s3` (any S3-compatible bucket). The AWS SDK is imported
- * lazily so the app runs without it when using the local driver.
+ * via /uploads), `s3` (any S3-compatible bucket), or `cloudinary`.
+ * The AWS / Cloudinary SDKs are imported lazily so unused drivers stay cheap.
  */
 class StorageService {
   private readonly driver = env.storage.driver;
   private s3Client: S3Client | null = null;
+  private cloudinaryConfigured = false;
 
   private key(folder: string, originalName: string): string {
     const ext = path.extname(originalName || '').toLowerCase();
@@ -42,7 +45,78 @@ class StorageService {
     return this.s3Client;
   }
 
-  async upload({ buffer, originalName, mimeType, folder = 'misc' }: UploadInput): Promise<StorageObject> {
+  private async getCloudinary() {
+    const { v2: cloudinary } = await import('cloudinary');
+    if (!this.cloudinaryConfigured) {
+      const { cloudName, apiKey, apiSecret } = env.storage.cloudinary;
+      if (!cloudName || !apiKey || !apiSecret) {
+        throw new Error(
+          'Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET.',
+        );
+      }
+      cloudinary.config({
+        cloud_name: cloudName,
+        api_key: apiKey,
+        api_secret: apiSecret,
+        secure: true,
+      });
+      this.cloudinaryConfigured = true;
+    }
+    return cloudinary;
+  }
+
+  private async uploadCloudinary({
+    buffer,
+    originalName,
+    mimeType,
+    folder = 'misc',
+    publicId,
+  }: UploadInput): Promise<StorageObject> {
+    const cloudinary = await this.getCloudinary();
+    const ext = path.extname(originalName || '').replace('.', '') || undefined;
+    const resourceType = mimeType.startsWith('image/') ? 'image' : 'auto';
+
+    const result = await new Promise<{
+      public_id: string;
+      secure_url: string;
+    }>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder,
+          public_id: publicId,
+          overwrite: Boolean(publicId),
+          invalidate: Boolean(publicId),
+          resource_type: resourceType,
+          format: ext,
+        },
+        (err, res) => {
+          if (err || !res) reject(err ?? new Error('Cloudinary upload failed'));
+          else resolve({ public_id: res.public_id, secure_url: res.secure_url });
+        },
+      );
+      stream.end(buffer);
+    });
+
+    return { key: result.public_id, url: result.secure_url };
+  }
+
+  async upload(input: UploadInput): Promise<StorageObject> {
+    const { buffer, originalName, mimeType, folder = 'misc' } = input;
+
+    if (this.driver === 'cloudinary') {
+      return this.uploadCloudinary(input);
+    }
+
+    // Member profiles always prefer Cloudinary when credentials exist.
+    if (
+      folder.startsWith('Members Profile') &&
+      env.storage.cloudinary.cloudName &&
+      env.storage.cloudinary.apiKey &&
+      env.storage.cloudinary.apiSecret
+    ) {
+      return this.uploadCloudinary(input);
+    }
+
     const key = this.key(folder, originalName);
 
     if (this.driver === 's3') {
@@ -67,11 +141,18 @@ class StorageService {
   async delete(key: string | undefined): Promise<void> {
     if (!key) return;
     try {
+      if (this.driver === 'cloudinary' || key.includes('Members Profile')) {
+        const cloudinary = await this.getCloudinary().catch(() => null);
+        if (cloudinary) {
+          await cloudinary.uploader.destroy(key);
+          return;
+        }
+      }
       if (this.driver === 's3') {
         const { DeleteObjectCommand } = await import('@aws-sdk/client-s3');
         const s3 = await this.getS3();
         await s3.send(new DeleteObjectCommand({ Bucket: env.storage.s3.bucket, Key: key }));
-      } else {
+      } else if (this.driver === 'local') {
         await fs.unlink(path.join(env.storage.uploadDir, key)).catch(() => {});
       }
     } catch (err) {

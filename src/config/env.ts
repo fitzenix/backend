@@ -43,7 +43,7 @@ export const env = {
   },
 
   storage: {
-    driver: (process.env.STORAGE_DRIVER ?? 'local') as 'local' | 's3',
+    driver: (process.env.STORAGE_DRIVER ?? 'local') as 'local' | 's3' | 'cloudinary',
     uploadDir: process.env.UPLOAD_DIR ?? 'uploads',
     s3: {
       endpoint: process.env.S3_ENDPOINT ?? '',
@@ -52,6 +52,11 @@ export const env = {
       accessKey: process.env.S3_ACCESS_KEY ?? '',
       secretKey: process.env.S3_SECRET_KEY ?? '',
       publicBaseUrl: process.env.S3_PUBLIC_BASE_URL ?? '',
+    },
+    cloudinary: {
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME ?? '',
+      apiKey: process.env.CLOUDINARY_API_KEY ?? '',
+      apiSecret: process.env.CLOUDINARY_API_SECRET ?? '',
     },
   },
 
@@ -62,6 +67,14 @@ export const env = {
       keySecret: process.env.RAZORPAY_KEY_SECRET ?? '',
       webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET ?? '',
     },
+  },
+
+  firebase: {
+    enabled: process.env.FIREBASE_ENABLED === 'true',
+    projectId: process.env.FIREBASE_PROJECT_ID ?? '',
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL ?? '',
+    /** Private key with escaped newlines (`\\n`) from the service-account JSON. */
+    privateKey: (process.env.FIREBASE_PRIVATE_KEY ?? '').replace(/\\n/g, '\n'),
   },
 
   redisUrl: process.env.REDIS_URL ?? '',

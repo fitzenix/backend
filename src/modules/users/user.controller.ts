@@ -34,6 +34,11 @@ export const userController = {
     sendSuccess(res, { data: user, message: 'Avatar updated' });
   }),
 
+  uploadMemberAvatar: asyncHandler<AuthedRequest>(async (req, res) => {
+    const user = await userService.setMemberAvatar(req, req.params.id, req.file);
+    sendSuccess(res, { data: user, message: 'Member profile photo updated' });
+  }),
+
   remove: asyncHandler<AuthedRequest>(async (req, res) => {
     const result = await userService.remove(req, req.params.id);
     sendSuccess(res, { data: result, message: 'User removed' });

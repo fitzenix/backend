@@ -15,15 +15,40 @@ import {
   PAYMENT_STATUS,
   INVOICE_STATUS,
   ENQUIRY_STATUS,
+  ATTENDANCE_STATUS,
 } from '../../config/constants';
 import type { Ctx } from '../../types/index';
+import type { WorkoutDay } from '../fitness/workoutPlan.model';
 
 const DAY_MS = 86_400_000;
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
 
 const startOfMonth = (d = new Date()): Date => new Date(d.getFullYear(), d.getMonth(), 1);
 const startOfDay = (d = new Date()): Date => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const startOfPrevMonth = (d = new Date()): Date => new Date(d.getFullYear(), d.getMonth() - 1, 1);
 const endOfPrevMonth = (d = new Date()): Date => new Date(d.getFullYear(), d.getMonth(), 0, 23, 59, 59, 999);
+
+/** Match a workout-plan day to today (weekday name, or rotate by Mon-based index). */
+function matchWorkoutDay(
+  planDays: WorkoutDay[],
+  weekday: number,
+  mondayIndex: number,
+): WorkoutDay | null {
+  if (!planDays.length) return null;
+  const name = WEEKDAY_NAMES[weekday].toLowerCase();
+  const short = DOW[weekday].toLowerCase();
+  const byName = planDays.find((d) => {
+    const label = (d.day || '').toLowerCase();
+    return label.includes(name) || label === short || label.startsWith(name.slice(0, 3));
+  });
+  if (byName) return byName;
+  return planDays[mondayIndex % planDays.length];
+}
+
+function formatClock(d: Date): string {
+  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+}
 
 async function sumPaid(match: Record<string, unknown>): Promise<{ totalPaise: number; count: number }> {
   const [row] = await Payment.aggregate<{ total: number; count: number }>([
@@ -292,16 +317,147 @@ export const reportsService = {
     }));
   },
 
-  /** Trainer dashboard: assigned members, plans authored. */
+  /**
+   * Trainer dashboard: assigned members, plans authored, and today's schedule
+   * derived from active workout-plan days + member attendance.
+   */
   async trainer(ctx: Ctx) {
     const gym = ctx.tenantId;
     const trainerId = ctx.user._id;
-    const [assignedMembers, workouts, diets] = await Promise.all([
-      User.countDocuments({ gym, role: ROLES.MEMBER, deletedAt: null, 'memberProfile.assignedTrainer': trainerId }),
+    const now = new Date();
+    const todayStart = startOfDay(now);
+    const tomorrow = new Date(todayStart.getTime() + DAY_MS);
+    const weekday = now.getDay();
+    const mondayIndex = weekday === 0 ? 6 : weekday - 1;
+
+    const assignedFilter = {
+      gym,
+      role: ROLES.MEMBER,
+      deletedAt: null,
+      'memberProfile.assignedTrainer': trainerId,
+    };
+
+    const [assignedMembers, workouts, diets, assignedIds, plans] = await Promise.all([
+      User.countDocuments(assignedFilter),
       WorkoutPlan.countDocuments({ gym, trainer: trainerId, deletedAt: null }),
       DietPlan.countDocuments({ gym, trainer: trainerId, deletedAt: null }),
+      User.find(assignedFilter).select('_id').lean(),
+      WorkoutPlan.find({ gym, trainer: trainerId, deletedAt: null, isActive: true })
+        .select('title days member')
+        .lean(),
     ]);
-    return { assignedMembers, plans: { workouts, diets } };
+
+    const memberIds = assignedIds.map((m) => m._id);
+    const attendanceToday = memberIds.length
+      ? await Attendance.find({
+          gym,
+          member: { $in: memberIds },
+          checkInAt: { $gte: todayStart, $lt: tomorrow },
+        })
+          .select('member status checkInAt')
+          .lean()
+      : [];
+
+    type AttState = { status: string; checkInAt: Date };
+    const attByMember = new Map<string, AttState>();
+    for (const row of attendanceToday) {
+      const key = String(row.member);
+      const prev = attByMember.get(key);
+      if (!prev || row.status === ATTENDANCE_STATUS.CHECKED_IN) {
+        attByMember.set(key, { status: row.status, checkInAt: row.checkInAt });
+      } else if (
+        prev.status !== ATTENDANCE_STATUS.CHECKED_IN &&
+        row.checkInAt < prev.checkInAt
+      ) {
+        attByMember.set(key, { status: row.status, checkInAt: row.checkInAt });
+      }
+    }
+
+    type ScheduleGroup = {
+      id: string;
+      title: string;
+      focus: string;
+      memberIds: Set<string>;
+      earliestCheckIn: Date | null;
+    };
+    const groups = new Map<string, ScheduleGroup>();
+
+    for (const plan of plans) {
+      const day = matchWorkoutDay(plan.days ?? [], weekday, mondayIndex);
+      if (!day) continue;
+      const focus = (day.focus || '').trim();
+      const title = focus || plan.title || 'Training session';
+      const key = `${plan.title}::${focus}`.toLowerCase();
+      let group = groups.get(key);
+      if (!group) {
+        group = {
+          id: key,
+          title,
+          focus,
+          memberIds: new Set(),
+          earliestCheckIn: null,
+        };
+        groups.set(key, group);
+      }
+      const mid = String(plan.member);
+      group.memberIds.add(mid);
+      const att = attByMember.get(mid);
+      if (att) {
+        if (!group.earliestCheckIn || att.checkInAt < group.earliestCheckIn) {
+          group.earliestCheckIn = att.checkInAt;
+        }
+      }
+    }
+
+    const statusRank: Record<string, number> = { Ongoing: 0, Upcoming: 1, Completed: 2 };
+
+    const todaySchedule = [...groups.values()]
+      .map((g) => {
+        const members = [...g.memberIds];
+        let open = 0;
+        let done = 0;
+        for (const mid of members) {
+          const att = attByMember.get(mid);
+          if (!att) continue;
+          if (att.status === ATTENDANCE_STATUS.CHECKED_IN) open += 1;
+          else done += 1;
+        }
+
+        let status: 'Completed' | 'Ongoing' | 'Upcoming' = 'Upcoming';
+        if (open > 0) status = 'Ongoing';
+        else if (members.length > 0 && done === members.length) status = 'Completed';
+        else if (done > 0) status = 'Ongoing';
+
+        return {
+          id: g.id,
+          title: g.title,
+          focus: g.focus,
+          memberCount: members.length,
+          membersLabel: `${members.length} Member${members.length === 1 ? '' : 's'}`,
+          status,
+          time: g.earliestCheckIn ? formatClock(g.earliestCheckIn) : 'Today',
+          checkInAt: g.earliestCheckIn ? g.earliestCheckIn.toISOString() : null,
+        };
+      })
+      .sort((a, b) => {
+        const sr = statusRank[a.status] - statusRank[b.status];
+        if (sr !== 0) return sr;
+        if (a.checkInAt && b.checkInAt) return a.checkInAt.localeCompare(b.checkInAt);
+        if (a.checkInAt) return -1;
+        if (b.checkInAt) return 1;
+        return a.title.localeCompare(b.title);
+      });
+
+    const checkedInToday = [...attByMember.values()].filter(
+      (a) => a.status === ATTENDANCE_STATUS.CHECKED_IN || a.status === ATTENDANCE_STATUS.CHECKED_OUT,
+    ).length;
+
+    return {
+      assignedMembers,
+      plans: { workouts, diets },
+      checkedInToday,
+      todaySchedule,
+    };
   },
 
   /** Member dashboard: subscription, streak, today summary, plans. */
