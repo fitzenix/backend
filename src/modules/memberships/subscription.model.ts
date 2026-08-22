@@ -13,6 +13,7 @@ export interface ISubscription {
   autoRenew: boolean;
   cancelledAt: Date | null;
   lastExpiryReminderAt: Date | null;
+  expiryRemindersSent?: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -38,6 +39,8 @@ const subscriptionSchema = new Schema<ISubscription, SubscriptionModel>(
     autoRenew: { type: Boolean, default: false },
     cancelledAt: { type: Date, default: null },
     lastExpiryReminderAt: { type: Date, default: null },
+    /** Milestone keys e.g. pre_3, pre_2, pre_1, post_1 … post_7 */
+    expiryRemindersSent: { type: [String], default: [] },
   },
   { timestamps: true, toJSON: { virtuals: true, versionKey: false } },
 );

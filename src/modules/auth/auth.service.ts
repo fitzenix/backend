@@ -4,17 +4,21 @@ import { Gym, type GymDocument } from '../gyms/gym.model';
 import { RefreshToken } from './refreshToken.model';
 import { ApiError } from '../../utils/ApiError';
 import { env } from '../../config/env';
-import { ROLES, USER_STATUS, GYM_STATUS } from '../../config/constants';
+import { ROLES, USER_STATUS, GYM_STATUS, TRIAL_DAYS } from '../../config/constants';
 import { uniqueSlug } from '../../utils/slug';
 import {
   signAccessToken,
   signRefreshToken,
   verifyRefreshToken,
   hashToken,
-  randomToken,
   generateOtp,
 } from '../../utils/tokens';
-import { logger } from '../../config/logger';
+import { mailService } from '../../services/mail/mail.service';
+import {
+  otpEmail,
+  welcomeEmail,
+} from '../../services/mail/templates';
+import { transferService } from '../users/transfer.service';
 import type { AuthTokenPayload } from '../../types/index';
 import type {
   RegisterInput,
@@ -38,7 +42,7 @@ interface TokenPair {
   refreshToken: string;
 }
 
-const TRIAL_MS = 14 * 24 * 60 * 60 * 1000;
+const TRIAL_MS = TRIAL_DAYS * 24 * 60 * 60 * 1000;
 
 function buildAccessPayload(user: UserDocument): Pick<AuthTokenPayload, 'sub' | 'role' | 'gym'> {
   return { sub: String(user._id), role: user.role, gym: user.gym ? String(user.gym) : null };
@@ -65,7 +69,8 @@ async function createOwnerAndGym(input: RegisterInput, session?: ClientSession):
     email: input.email,
     phone: input.phone,
     role: ROLES.GYM_OWNER,
-    status: USER_STATUS.ACTIVE,
+    status: USER_STATUS.PENDING,
+    emailVerified: false,
     passwordHash: 'pending',
   });
   await user.setPassword(input.password);
@@ -89,7 +94,7 @@ async function createOwnerAndGym(input: RegisterInput, session?: ClientSession):
 
 export const authService = {
   /** Onboarding: creates a gym_owner and their gym (transaction when supported). */
-  async register(input: RegisterInput, ctx: RequestContext = {}) {
+  async register(input: RegisterInput, _ctx: RequestContext = {}) {
     const existing = await User.findOne({ email: input.email });
     if (existing) throw ApiError.conflict('An account with this email already exists');
 
@@ -113,8 +118,33 @@ export const authService = {
       await session.endSession();
     }
 
-    const tokens = await issueTokens(created.user, ctx);
-    return { user: created.user, gym: created.gym, ...tokens };
+    const otp = generateOtp();
+    created.user.otpHash = hashToken(otp);
+    created.user.otpExpires = new Date(Date.now() + env.otpTtlSeconds * 1000);
+    created.user.otpPurpose = 'verify_email';
+    await created.user.save();
+
+    await mailService.send(
+      created.user.email,
+      welcomeEmail({ name: created.user.name, gymName: created.gym.name }),
+    );
+    await mailService.send(
+      created.user.email,
+      otpEmail({
+        name: created.user.name,
+        code: otp,
+        purpose: 'verify_email',
+        minutes: Math.round(env.otpTtlSeconds / 60),
+      }),
+    );
+
+    return {
+      needsEmailVerification: true as const,
+      email: created.user.email,
+      user: created.user,
+      gym: created.gym,
+      ...(env.isProd ? {} : { otp }),
+    };
   },
 
   async login({ email, password }: LoginInput, ctx: RequestContext = {}) {
@@ -123,6 +153,12 @@ export const authService = {
     const ok = await user.comparePassword(password);
     if (!ok) throw ApiError.unauthorized('Invalid credentials');
     if (user.status === USER_STATUS.SUSPENDED) throw ApiError.forbidden('Account suspended');
+    if (!user.emailVerified) {
+      throw ApiError.emailNotVerified('Verify your email before signing in. We can resend the code.', {
+        email: user.email,
+        canResend: true,
+      });
+    }
 
     user.lastLoginAt = new Date();
     await user.save();
@@ -174,26 +210,42 @@ export const authService = {
     await this.logoutAll(user._id);
   },
 
-  async forgotPassword({ email }: ForgotPasswordInput): Promise<{ sent: true; resetToken?: string }> {
+  async forgotPassword({ email }: ForgotPasswordInput): Promise<{ sent: true; otp?: string }> {
     const user = await User.findOne({ email, deletedAt: null });
-    if (!user) return { sent: true }; // do not leak existence
-    const token = randomToken();
-    user.resetTokenHash = hashToken(token);
-    user.resetTokenExpires = new Date(Date.now() + 30 * 60 * 1000);
+    if (!user) throw ApiError.badRequest('Please enter a valid email address.');
+    const otp = generateOtp();
+    user.otpHash = hashToken(otp);
+    user.otpExpires = new Date(Date.now() + env.otpTtlSeconds * 1000);
+    user.otpPurpose = 'reset';
+    user.resetTokenHash = undefined;
+    user.resetTokenExpires = undefined;
     await user.save();
-    logger.info({ email }, 'Password reset requested');
-    return { sent: true, ...(env.isProd ? {} : { resetToken: token }) };
+    await mailService.send(
+      email,
+      otpEmail({
+        name: user.name,
+        code: otp,
+        purpose: 'reset',
+        minutes: Math.round(env.otpTtlSeconds / 60),
+      }),
+    );
+    return { sent: true, ...(env.isProd ? {} : { otp }) };
   },
 
-  async resetPassword({ token, password }: ResetPasswordInput): Promise<void> {
-    const user = await User.findOne({
-      resetTokenHash: hashToken(token),
-      resetTokenExpires: { $gt: new Date() },
-    }).select('+resetTokenHash +resetTokenExpires');
-    if (!user) throw ApiError.badRequest('Invalid or expired reset token');
+  async resetPassword({ email, otp, password }: ResetPasswordInput): Promise<void> {
+    const user = (await User.findOne({ email, deletedAt: null }).select(
+      '+otpHash +otpExpires +otpPurpose +resetTokenHash +resetTokenExpires',
+    )) as UserDocument | null;
+    if (!user || !user.otpHash) throw ApiError.badRequest('No reset code requested');
+    if (!user.otpExpires || user.otpExpires < new Date()) throw ApiError.badRequest('Reset code expired');
+    if (user.otpPurpose !== 'reset') throw ApiError.badRequest('Reset code purpose mismatch');
+    if (user.otpHash !== hashToken(otp)) throw ApiError.badRequest('Incorrect reset code');
     await user.setPassword(password);
     user.resetTokenHash = undefined;
     user.resetTokenExpires = undefined;
+    user.otpHash = undefined;
+    user.otpExpires = undefined;
+    user.otpPurpose = undefined;
     await user.save();
     await this.logoutAll(user._id);
   },
@@ -206,28 +258,51 @@ export const authService = {
     user.otpExpires = new Date(Date.now() + env.otpTtlSeconds * 1000);
     user.otpPurpose = purpose;
     await user.save();
-    logger.info({ email, purpose }, 'OTP generated');
+    await mailService.send(
+      email,
+      otpEmail({
+        name: user.name,
+        code: otp,
+        purpose,
+        minutes: Math.round(env.otpTtlSeconds / 60),
+      }),
+    );
     return { sent: true, ...(env.isProd ? {} : { otp }) };
   },
 
   async verifyOtp({ email, otp, purpose }: VerifyOtpInput, ctx: RequestContext = {}) {
+    if (purpose === 'gym_transfer') {
+      const member = await transferService.completeByOtp(email, otp);
+      return { verified: true as const, transferred: true as const, user: member };
+    }
+
     const user = await User.findOne({ email, deletedAt: null }).select('+otpHash +otpExpires +otpPurpose');
     if (!user || !user.otpHash) throw ApiError.badRequest('No OTP requested');
     if (!user.otpExpires || user.otpExpires < new Date()) throw ApiError.badRequest('OTP expired');
     if (user.otpPurpose !== purpose) throw ApiError.badRequest('OTP purpose mismatch');
     if (user.otpHash !== hashToken(otp)) throw ApiError.badRequest('Incorrect OTP');
 
+    if (purpose === 'reset') {
+      throw ApiError.badRequest('Enter your reset code on the new password screen');
+    }
+
     user.otpHash = undefined;
     user.otpExpires = undefined;
     user.otpPurpose = undefined;
-    if (purpose === 'verify_email') user.emailVerified = true;
+    if (purpose === 'verify_email') {
+      user.emailVerified = true;
+      if (user.status === USER_STATUS.PENDING) user.status = USER_STATUS.ACTIVE;
+    }
     await user.save();
 
     if (purpose === 'login') {
+      if (!user.emailVerified) {
+        throw ApiError.emailNotVerified('Verify your email before signing in', { email: user.email });
+      }
       const tokens = await issueTokens(user, ctx);
       return { verified: true as const, user, ...tokens };
     }
-    return { verified: true as const };
+    return { verified: true as const, emailVerified: user.emailVerified };
   },
 };
 

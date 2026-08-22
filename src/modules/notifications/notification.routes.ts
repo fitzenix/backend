@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { notificationController } from './notification.controller';
 import { authenticate } from '../../middleware/auth';
+import { requireActiveGym } from '../../middleware/gymAccess';
 import { validate } from '../../middleware/validate';
 import { idParam } from '../../validators/common';
 import { sendLimiter } from '../../middleware/rateLimit';
@@ -19,7 +20,7 @@ import {
 
 const router = Router();
 
-router.use(authenticate);
+router.use(authenticate, requireActiveGym);
 
 // Static paths first (before /:id)
 router.get('/', validate({ query: listNotificationsQuery }), notificationController.list);

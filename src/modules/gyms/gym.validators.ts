@@ -44,13 +44,34 @@ export const settingsSchema = z
     workingHours: z
       .object({ open: z.string().regex(/^\d{2}:\d{2}$/), close: z.string().regex(/^\d{2}:\d{2}$/) })
       .optional(),
+    capacity: z.number().int().min(1).max(100000).optional(),
   })
   .strict();
 
 export const statusSchema = z.object({ status: z.enum(['active', 'suspended', 'trial']) });
+
+export const createGymSchema = z
+  .object({
+    name: z.string().min(2).max(160),
+    email: z.string().email().optional(),
+    phone: z.string().min(6).max(20).optional(),
+    address: addressSchema,
+    ownerId: z.string().min(1).optional(),
+    owner: z
+      .object({
+        name: z.string().min(2).max(120),
+        email: z.string().email(),
+        phone: z.string().min(6).max(20).optional(),
+        password: z.string().min(8).max(128),
+      })
+      .optional(),
+  })
+  .strict()
+  .refine((d) => !!d.ownerId || !!d.owner, { message: 'ownerId or owner is required' });
 
 export type ListGymsQuery = z.infer<typeof listGymsQuery>;
 export type UpdateGymInput = z.infer<typeof updateGymSchema>;
 export type BrandingInput = z.infer<typeof brandingSchema>;
 export type SettingsInput = z.infer<typeof settingsSchema>;
 export type StatusInput = z.infer<typeof statusSchema>;
+export type CreateGymInput = z.infer<typeof createGymSchema>;

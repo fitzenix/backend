@@ -9,6 +9,8 @@ export interface CreateOrderInput {
   currency?: string;
   receipt?: string;
   notes?: Record<string, unknown>;
+  /** Restrict checkout to one method (e.g. `upi`). */
+  method?: 'upi' | 'card' | 'netbanking';
 }
 
 export interface GatewayOrder {

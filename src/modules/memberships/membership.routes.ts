@@ -3,15 +3,36 @@ import { membershipController } from './membership.controller';
 import { authenticate } from '../../middleware/auth';
 import { authorize } from '../../middleware/rbac';
 import { resolveTenant, requireTenant } from '../../middleware/tenant';
+import { requireActiveGym } from '../../middleware/gymAccess';
 import { validate } from '../../middleware/validate';
 import { ROLES } from '../../config/constants';
-import { idParam } from '../../validators/common';
+import { idParam, paginationQuery } from '../../validators/common';
 import { listQuery, createPlanSchema, updatePlanSchema, createSubscriptionSchema } from './membership.validators';
+import { z } from 'zod';
 
 const router = Router();
 const OWNER = [ROLES.SUPER_ADMIN, ROLES.GYM_OWNER] as const;
 
-router.use(authenticate, resolveTenant, requireTenant);
+router.use(authenticate, resolveTenant, requireActiveGym);
+
+// Platform (super_admin) — before requireTenant
+router.get(
+  '/platform/summary',
+  authorize(ROLES.SUPER_ADMIN),
+  membershipController.platformSummary,
+);
+router.get(
+  '/platform/subscriptions',
+  authorize(ROLES.SUPER_ADMIN),
+  validate({
+    query: paginationQuery.extend({
+      status: z.enum(['active', 'expired', 'cancelled', 'pending']).optional(),
+    }),
+  }),
+  membershipController.platformSubscriptions,
+);
+
+router.use(requireTenant);
 
 // Plans
 router.get('/plans', validate({ query: listQuery }), membershipController.listPlans);

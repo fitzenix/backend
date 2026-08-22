@@ -14,6 +14,7 @@ import {
   requestOtpSchema,
   verifyOtpSchema,
 } from './auth.validators';
+import { idParam } from '../../validators/common';
 
 const router = Router();
 
@@ -28,6 +29,10 @@ router.post('/otp/request', authLimiter, validate({ body: requestOtpSchema }), a
 router.post('/otp/verify', authLimiter, validate({ body: verifyOtpSchema }), authController.verifyOtp);
 
 router.get('/me', authenticate, authController.me);
+router.get('/transfers/pending', authenticate, authController.pendingTransfers);
+router.post('/transfers/:id/accept', authenticate, validate({ params: idParam }), authController.acceptTransfer);
+router.post('/transfers/:id/decline', authenticate, validate({ params: idParam }), authController.declineTransfer);
+router.post('/transfers/:id/resend', authenticate, validate({ params: idParam }), authController.resendTransferOtp);
 router.post('/change-password', authenticate, validate({ body: changePasswordSchema }), authController.changePassword);
 router.post('/logout-all', authenticate, authController.logoutAll);
 

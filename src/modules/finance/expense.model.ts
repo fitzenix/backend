@@ -36,5 +36,7 @@ const expenseSchema = new Schema<IExpense, ExpenseModel>(
   { timestamps: true, toJSON: { versionKey: false } },
 );
 
+expenseSchema.index({ gym: 1, note: 1 });
+
 export const Expense = model<IExpense, ExpenseModel>('Expense', expenseSchema);
 export default Expense;

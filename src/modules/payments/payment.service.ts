@@ -6,7 +6,7 @@ import { MembershipPlan } from '../memberships/membershipPlan.model';
 import { User, type UserDocument } from '../users/user.model';
 import { ApiError } from '../../utils/ApiError';
 import { env } from '../../config/env';
-import { ROLES, PAYMENT_STATUS, SUBSCRIPTION_STATUS, INVOICE_STATUS, CURRENCY } from '../../config/constants';
+import { ROLES, PAYMENT_STATUS, PAYMENT_PURPOSE, SUBSCRIPTION_STATUS, INVOICE_STATUS, CURRENCY } from '../../config/constants';
 import { parseListQuery } from '../../utils/pagination';
 import { numericId } from '../../utils/ids';
 import { getPaymentGateway } from '../../services/payments/index';
@@ -131,6 +131,12 @@ export const paymentService = {
     payment.paidAt = new Date();
     await payment.save();
 
+    if (payment.purpose === PAYMENT_PURPOSE.PLATFORM) {
+      const { billingService } = await import('../billing/billing.service');
+      await billingService.activateFromPayment(payment, providerPaymentId);
+      return payment;
+    }
+
     if (payment.subscription) await membershipService.activateSubscription(payment.subscription, payment._id);
     await this.createInvoice(payment);
 
@@ -199,7 +205,11 @@ export const paymentService = {
   async list(ctx: Ctx): Promise<Paginated<PaymentDocument>> {
     const q = (ctx.validatedQuery ?? {}) as ListQuery;
     const { page, limit, skip, sort } = parseListQuery(q);
-    const filter: FilterQuery<IPayment> = { gym: requireTenant(ctx) };
+    const filter: FilterQuery<IPayment> = {
+      gym: requireTenant(ctx),
+      purpose: { $ne: PAYMENT_PURPOSE.PLATFORM },
+      'notes.purpose': { $ne: PAYMENT_PURPOSE.PLATFORM },
+    };
     if (ctx.user.role === ROLES.MEMBER) filter.member = ctx.user._id;
     else if (q.memberId) filter.member = q.memberId;
     if (q.status) filter.status = q.status;
@@ -213,7 +223,10 @@ export const paymentService = {
   async listInvoices(ctx: Ctx): Promise<Paginated<InvoiceDocument>> {
     const q = (ctx.validatedQuery ?? {}) as ListQuery;
     const { page, limit, skip, sort } = parseListQuery(q);
-    const filter: Record<string, unknown> = { gym: requireTenant(ctx) };
+    const filter: Record<string, unknown> = {
+      gym: requireTenant(ctx),
+      number: { $not: /^FX-/ },
+    };
     if (ctx.user.role === ROLES.MEMBER) filter.member = ctx.user._id;
     else if (q.memberId) filter.member = q.memberId;
     const [items, total] = await Promise.all([

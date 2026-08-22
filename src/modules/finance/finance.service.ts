@@ -5,8 +5,9 @@ import { Payment } from '../payments/payment.model';
 import { Invoice, type InvoiceDocument } from '../payments/invoice.model';
 import { Subscription } from '../memberships/subscription.model';
 import { User } from '../users/user.model';
+import { Gym } from '../gyms/gym.model';
 import { ApiError } from '../../utils/ApiError';
-import { ROLES, PAYMENT_STATUS, INVOICE_STATUS, SUBSCRIPTION_STATUS, CURRENCY } from '../../config/constants';
+import { ROLES, PAYMENT_STATUS, PAYMENT_PURPOSE, INVOICE_STATUS, SUBSCRIPTION_STATUS, CURRENCY } from '../../config/constants';
 import { parseListQuery, buildSearchFilter } from '../../utils/pagination';
 import { numericId } from '../../utils/ids';
 import { notificationService } from '../notifications/notification.service';
@@ -102,7 +103,11 @@ export const financeService = {
     const gym = requireTenant(ctx);
     const q = (ctx.validatedQuery ?? {}) as InvoiceListQuery;
     const { page, limit, skip, sort, search } = parseListQuery(q, { defaultSort: 'createdAt' });
-    const filter: Record<string, unknown> = { gym, ...buildSearchFilter(search, ['number']) };
+    const filter: Record<string, unknown> = {
+      gym,
+      number: { $not: /^FX-/ },
+      ...buildSearchFilter(search, ['number']),
+    };
     if (q.status) filter.status = q.status;
     if (q.memberId) filter.member = q.memberId;
     const [items, total] = await Promise.all([
@@ -259,7 +264,12 @@ export const financeService = {
     const prevPeriodEnd = periodStart;
     const trendFrom = new Date(year, month - 6, 1);
 
-    console.log('finance service dashboard');
+    const gymDoc = await Gym.findById(gymId);
+    if (gymDoc) {
+      const { billingService } = await import('../billing/billing.service');
+      await billingService.syncSaasExpenses(gymDoc);
+    }
+
     const [
       paidRows,
       prevIncomeRow,
@@ -277,6 +287,8 @@ export const financeService = {
           $match: {
             gym,
             status: PAYMENT_STATUS.PAID,
+            purpose: { $ne: PAYMENT_PURPOSE.PLATFORM },
+            'notes.purpose': { $ne: PAYMENT_PURPOSE.PLATFORM },
             paidAt: { $gte: periodStart, $lt: periodEnd },
           },
         },
@@ -298,6 +310,8 @@ export const financeService = {
           $match: {
             gym,
             status: PAYMENT_STATUS.PAID,
+            purpose: { $ne: PAYMENT_PURPOSE.PLATFORM },
+            'notes.purpose': { $ne: PAYMENT_PURPOSE.PLATFORM },
             paidAt: { $gte: prevPeriodStart, $lt: prevPeriodEnd },
           },
         },
@@ -308,12 +322,16 @@ export const financeService = {
           $match: {
             gym,
             status: PAYMENT_STATUS.REFUNDED,
+            purpose: { $ne: PAYMENT_PURPOSE.PLATFORM },
+            'notes.purpose': { $ne: PAYMENT_PURPOSE.PLATFORM },
             updatedAt: { $gte: periodStart, $lt: periodEnd },
           },
         },
         { $group: { _id: null, total: { $sum: '$amountPaise' }, count: { $sum: 1 } } },
       ]),
-      Invoice.find({ gym, status: INVOICE_STATUS.UNPAID }).select('member totalPaise').lean(),
+      Invoice.find({ gym, status: INVOICE_STATUS.UNPAID, number: { $not: /^FX-/ } })
+        .select('member totalPaise')
+        .lean(),
       Expense.aggregate<CategoryAgg>([
         { $match: { gym, date: { $gte: periodStart, $lt: periodEnd } } },
         { $group: { _id: '$category', total: { $sum: '$amountPaise' } } },
@@ -324,6 +342,8 @@ export const financeService = {
           $match: {
             gym,
             status: PAYMENT_STATUS.PAID,
+            purpose: { $ne: PAYMENT_PURPOSE.PLATFORM },
+            'notes.purpose': { $ne: PAYMENT_PURPOSE.PLATFORM },
             paidAt: { $gte: trendFrom, $lt: periodEnd },
           },
         },
@@ -335,7 +355,12 @@ export const financeService = {
         },
         { $sort: { '_id.y': 1, '_id.m': 1 } },
       ]),
-      Payment.find({ gym, status: { $in: [PAYMENT_STATUS.PAID, PAYMENT_STATUS.REFUNDED] } })
+      Payment.find({
+        gym,
+        status: { $in: [PAYMENT_STATUS.PAID, PAYMENT_STATUS.REFUNDED] },
+        purpose: { $ne: PAYMENT_PURPOSE.PLATFORM },
+        'notes.purpose': { $ne: PAYMENT_PURPOSE.PLATFORM },
+      })
         .sort({ updatedAt: -1 })
         .limit(6)
         .populate('member', 'name')
@@ -504,7 +529,7 @@ export const financeService = {
     const now = new Date();
 
     const [unpaidInvoices, activeSubs, paidSubPayments] = await Promise.all([
-      Invoice.find({ gym, status: INVOICE_STATUS.UNPAID })
+      Invoice.find({ gym, status: INVOICE_STATUS.UNPAID, number: { $not: /^FX-/ } })
         .select('member totalPaise number dueDate')
         .lean(),
       Subscription.find({
@@ -607,6 +632,55 @@ export const financeService = {
         };
       })
       .sort((a, b) => b.amountPaise - a.amountPaise);
+  },
+
+  /** Super-admin platform finance summary (no gym tenant). */
+  async platformSummary() {
+    const [paid, refunded, pending, paidAgg, refundAgg, pendingAgg] = await Promise.all([
+      Payment.countDocuments({ status: PAYMENT_STATUS.PAID }),
+      Payment.countDocuments({ status: PAYMENT_STATUS.REFUNDED }),
+      Payment.countDocuments({ status: { $in: [PAYMENT_STATUS.CREATED, PAYMENT_STATUS.FAILED] } }),
+      Payment.aggregate<TotalCountAgg>([
+        { $match: { status: PAYMENT_STATUS.PAID } },
+        { $group: { _id: null, total: { $sum: '$amountPaise' }, count: { $sum: 1 } } },
+      ]),
+      Payment.aggregate<TotalCountAgg>([
+        { $match: { status: PAYMENT_STATUS.REFUNDED } },
+        { $group: { _id: null, total: { $sum: '$amountPaise' }, count: { $sum: 1 } } },
+      ]),
+      Payment.aggregate<TotalCountAgg>([
+        { $match: { status: { $in: [PAYMENT_STATUS.CREATED, PAYMENT_STATUS.FAILED] } } },
+        { $group: { _id: null, total: { $sum: '$amountPaise' }, count: { $sum: 1 } } },
+      ]),
+    ]);
+
+    return {
+      revenuePaise: paidAgg[0]?.total ?? 0,
+      successful: { count: paid, amountPaise: paidAgg[0]?.total ?? 0 },
+      refunds: { count: refunded, amountPaise: refundAgg[0]?.total ?? 0 },
+      pending: { count: pending, amountPaise: pendingAgg[0]?.total ?? 0 },
+    };
+  },
+
+  /** Super-admin cross-gym payment transactions. */
+  async platformTransactions(ctx: Ctx): Promise<Paginated<unknown>> {
+    const q = (ctx.validatedQuery ?? {}) as { page?: number; limit?: number; status?: string; search?: string };
+    const { page, limit, skip, sort } = parseListQuery(q);
+    const filter: Record<string, unknown> = {};
+    if (q.status) filter.status = q.status;
+
+    const [items, total] = await Promise.all([
+      Payment.find(filter)
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .populate('gym', 'name')
+        .populate('member', 'name email')
+        .lean(),
+      Payment.countDocuments(filter),
+    ]);
+
+    return { items, page, limit, total };
   },
 };
 

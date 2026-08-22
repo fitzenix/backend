@@ -3,15 +3,23 @@ import { enquiryController } from './enquiry.controller';
 import { authenticate } from '../../middleware/auth';
 import { authorize } from '../../middleware/rbac';
 import { resolveTenant, requireTenant } from '../../middleware/tenant';
+import { requireActiveGym, requireGymFeature } from '../../middleware/gymAccess';
 import { validate } from '../../middleware/validate';
-import { ROLES } from '../../config/constants';
+import { GYM_FEATURES, ROLES } from '../../config/constants';
 import { idParam } from '../../validators/common';
 import { enquiryListQuery, createEnquirySchema, updateEnquirySchema } from './enquiry.validators';
 
 const router = Router();
 const OWNER = [ROLES.SUPER_ADMIN, ROLES.GYM_OWNER] as const;
 
-router.use(authenticate, resolveTenant, requireTenant, authorize(...OWNER));
+router.use(
+  authenticate,
+  resolveTenant,
+  requireTenant,
+  authorize(...OWNER),
+  requireActiveGym,
+  requireGymFeature(GYM_FEATURES.CRM),
+);
 
 router.get('/', validate({ query: enquiryListQuery }), enquiryController.list);
 router.post('/', validate({ body: createEnquirySchema }), enquiryController.create);

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { feedController } from './feed.controller';
 import { authenticate } from '../../middleware/auth';
 import { resolveTenant, requireTenant } from '../../middleware/tenant';
+import { requireActiveGym } from '../../middleware/gymAccess';
 import { validate } from '../../middleware/validate';
 import { uploadImages } from '../../middleware/upload';
 import { objectId, paginationQuery } from '../../validators/common';
@@ -18,7 +19,7 @@ const commentSchema = z.object({ text: z.string().min(1).max(1000) });
 const idParam = z.object({ id: objectId });
 const commentParams = z.object({ id: objectId, commentId: objectId });
 
-router.use(authenticate, resolveTenant, requireTenant);
+router.use(authenticate, resolveTenant, requireTenant, requireActiveGym);
 
 router.get('/', validate({ query: listQuery }), feedController.list);
 router.get('/:id', validate({ params: idParam }), feedController.get);

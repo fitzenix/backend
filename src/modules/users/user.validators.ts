@@ -118,3 +118,13 @@ export type ListUsersQuery = z.infer<typeof listUsersQuery>;
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+
+export const initiateTransferSchema = z
+  .object({
+    userId: objectId.optional(),
+    email: z.string().email().toLowerCase().optional(),
+    phone: z.string().min(6).max(20).optional(),
+  })
+  .refine((d) => d.userId || d.email || d.phone, { message: 'userId, email, or phone is required' });
+
+export type InitiateTransferInput = z.infer<typeof initiateTransferSchema>;

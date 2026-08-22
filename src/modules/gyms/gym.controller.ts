@@ -11,12 +11,20 @@ export const gymController = {
 
   getMine: asyncHandler<AuthedRequest>(async (req, res) => {
     const gym = await gymService.getMine(req);
-    sendSuccess(res, { data: gym });
+    const { billingService } = await import('../billing/billing.service');
+    const { computeGymAccess } = await import('../billing/billing.access');
+    await billingService.ensureFresh(gym);
+    sendSuccess(res, { data: { ...gym.toJSON(), access: computeGymAccess(gym) } });
   }),
 
   getOne: asyncHandler<AuthedRequest>(async (req, res) => {
     const gym = await gymService.getById(req.params.id);
     sendSuccess(res, { data: gym });
+  }),
+
+  create: asyncHandler<AuthedRequest>(async (req, res) => {
+    const gym = await gymService.create(req, req.body);
+    sendSuccess(res, { data: gym, message: 'Gym created', status: 201 });
   }),
 
   update: asyncHandler<AuthedRequest>(async (req, res) => {

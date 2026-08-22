@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { chatController } from './chat.controller';
 import { authenticate } from '../../middleware/auth';
 import { resolveTenant, requireTenant } from '../../middleware/tenant';
+import { requireActiveGym } from '../../middleware/gymAccess';
 import { validate } from '../../middleware/validate';
 import { objectId, idParam, paginationQuery } from '../../validators/common';
 
@@ -11,7 +12,7 @@ const router = Router();
 const openSchema = z.object({ userId: objectId });
 const messageSchema = z.object({ text: z.string().min(1).max(4000) });
 
-router.use(authenticate, resolveTenant, requireTenant);
+router.use(authenticate, resolveTenant, requireTenant, requireActiveGym);
 
 router.get('/conversations', validate({ query: paginationQuery }), chatController.listConversations);
 router.post('/conversations', validate({ body: openSchema }), chatController.open);

@@ -7,6 +7,9 @@ export type ErrorCode =
   | 'VALIDATION_ERROR'
   | 'RATE_LIMITED'
   | 'PAYLOAD_TOO_LARGE'
+  | 'GYM_ACCESS_LOCKED'
+  | 'EMAIL_NOT_VERIFIED'
+  | 'TRANSFER_REQUIRED'
   | 'INTERNAL_ERROR';
 
 /**
@@ -36,8 +39,21 @@ export class ApiError extends Error {
     return new ApiError(401, 'UNAUTHORIZED', message, details);
   }
 
+  static emailNotVerified(message = 'Please verify your email before signing in', details?: unknown): ApiError {
+    return new ApiError(403, 'EMAIL_NOT_VERIFIED', message, details);
+  }
+
+  static transferRequired(message = 'This member already has a Fitzenix account', details?: unknown): ApiError {
+    return new ApiError(409, 'TRANSFER_REQUIRED', message, details);
+  }
+
   static forbidden(message = 'Forbidden', details?: unknown): ApiError {
     return new ApiError(403, 'FORBIDDEN', message, details);
+  }
+
+  /** Gym trial or SaaS plan has lapsed — client should show billing / locked UI. */
+  static gymLocked(message = 'Gym plan expired', details?: unknown): ApiError {
+    return new ApiError(403, 'GYM_ACCESS_LOCKED', message, details);
   }
 
   static notFound(message = 'Resource not found', details?: unknown): ApiError {

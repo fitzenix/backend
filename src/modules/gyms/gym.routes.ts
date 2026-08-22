@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { gymController } from './gym.controller';
 import { authenticate } from '../../middleware/auth';
+import { requireActiveGym } from '../../middleware/gymAccess';
 import { authorize } from '../../middleware/rbac';
 import { validate } from '../../middleware/validate';
 import { uploadImage } from '../../middleware/upload';
 import { ROLES } from '../../config/constants';
 import { idParam } from '../../validators/common';
-import { listGymsQuery, updateGymSchema, brandingSchema, settingsSchema, statusSchema } from './gym.validators';
+import { listGymsQuery, updateGymSchema, brandingSchema, settingsSchema, statusSchema, createGymSchema } from './gym.validators';
 
 const router = Router();
 const OWNER = [ROLES.SUPER_ADMIN, ROLES.GYM_OWNER] as const;
@@ -14,7 +15,9 @@ const OWNER = [ROLES.SUPER_ADMIN, ROLES.GYM_OWNER] as const;
 router.use(authenticate);
 
 router.get('/me', gymController.getMine);
+router.use(requireActiveGym);
 router.get('/', authorize(ROLES.SUPER_ADMIN), validate({ query: listGymsQuery }), gymController.list);
+router.post('/', authorize(ROLES.SUPER_ADMIN), validate({ body: createGymSchema }), gymController.create);
 router.get('/:id', validate({ params: idParam }), gymController.getOne);
 
 router.patch('/:id', authorize(...OWNER), validate({ params: idParam, body: updateGymSchema }), gymController.update);

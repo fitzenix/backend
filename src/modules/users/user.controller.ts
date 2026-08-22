@@ -1,6 +1,7 @@
 import { asyncHandler } from '../../utils/asyncHandler';
 import { sendSuccess, sendCreated, paginationMeta } from '../../utils/apiResponse';
 import { userService } from './user.service';
+import { transferService } from './transfer.service';
 import type { AuthedRequest } from '../../types/index';
 
 export const userController = {
@@ -42,6 +43,14 @@ export const userController = {
   remove: asyncHandler<AuthedRequest>(async (req, res) => {
     const result = await userService.remove(req, req.params.id);
     sendSuccess(res, { data: result, message: 'User removed' });
+  }),
+
+  initiateTransfer: asyncHandler<AuthedRequest>(async (req, res) => {
+    const transfer = await transferService.initiate(req, req.body);
+    sendCreated(res, {
+      data: transfer,
+      message: 'Acknowledgement emailed. The member must confirm before joining your gym.',
+    });
   }),
 };
 

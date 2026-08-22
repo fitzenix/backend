@@ -23,6 +23,15 @@ const DEFAULT_TEMPLATES = [
     variables: ['memberName', 'days'],
   },
   {
+    key: 'member.membership_lapsed',
+    event: PUSH_EVENTS.MEMBER_MEMBERSHIP_LAPSED,
+    type: NOTIFICATION_TYPES.MEMBERSHIP,
+    title: 'Membership expired — renew now',
+    body: 'Hi {{memberName}}, your membership expired {{days}} day(s) ago. Renew to restore access.',
+    deepLink: 'Plan',
+    variables: ['memberName', 'days'],
+  },
+  {
     key: 'member.payment_success',
     event: PUSH_EVENTS.MEMBER_PAYMENT_SUCCESS,
     type: NOTIFICATION_TYPES.PAYMENT,

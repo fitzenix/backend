@@ -1,11 +1,13 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { financeController } from './finance.controller';
 import { authenticate } from '../../middleware/auth';
 import { authorize } from '../../middleware/rbac';
 import { resolveTenant, requireTenant } from '../../middleware/tenant';
+import { requireActiveGym } from '../../middleware/gymAccess';
 import { validate } from '../../middleware/validate';
 import { ROLES } from '../../config/constants';
-import { idParam } from '../../validators/common';
+import { idParam, paginationQuery } from '../../validators/common';
 import {
   expenseListQuery,
   createExpenseSchema,
@@ -18,7 +20,27 @@ import {
 
 const router = Router();
 
-router.use(authenticate, resolveTenant, requireTenant, authorize(ROLES.SUPER_ADMIN, ROLES.GYM_OWNER));
+router.use(authenticate, resolveTenant, authorize(ROLES.SUPER_ADMIN, ROLES.GYM_OWNER));
+
+// Platform (super_admin) — no gym tenant required
+router.get(
+  '/platform/summary',
+  authorize(ROLES.SUPER_ADMIN),
+  financeController.platformSummary,
+);
+router.get(
+  '/platform/transactions',
+  authorize(ROLES.SUPER_ADMIN),
+  validate({
+    query: paginationQuery.extend({
+      status: z.enum(['created', 'paid', 'failed', 'refunded']).optional(),
+    }),
+  }),
+  financeController.platformTransactions,
+);
+
+// Gym-scoped finance
+router.use(requireTenant, requireActiveGym);
 
 router.get('/dashboard', validate({ query: dashboardQuery }), financeController.dashboard);
 router.get('/pending-members', financeController.listPendingMembers);

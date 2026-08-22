@@ -1,5 +1,5 @@
 import { Schema, model, Types, type Model, type HydratedDocument } from 'mongoose';
-import { GYM_STATUS, type GymStatus } from '../../config/constants';
+import { GYM_STATUS, GYM_PLAN_VALUES, type GymStatus, type GymPlanId } from '../../config/constants';
 import type { StorageObject } from '../../types/index';
 
 export interface GymBranding {
@@ -16,6 +16,8 @@ export interface GymSettings {
   allowMemberSelfCheckin: boolean;
   membershipExpiryReminderDays: number;
   workingHours: { open: string; close: string };
+  /** Max members / floor capacity (optional). */
+  capacity?: number;
 }
 
 export interface IGym {
@@ -37,6 +39,11 @@ export interface IGym {
   settings: GymSettings;
   status: GymStatus;
   trialEndsAt?: Date;
+  /** Paid Fitzenix plan. Null while the gym is on the 14-day trial. */
+  plan?: GymPlanId | null;
+  planPeriodEnd?: Date;
+  planPaidAt?: Date;
+  lastPaymentId?: Types.ObjectId | null;
   deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -66,6 +73,7 @@ const settingsSchema = new Schema<GymSettings>(
       open: { type: String, default: '06:00' },
       close: { type: String, default: '22:00' },
     },
+    capacity: { type: Number, min: 1, max: 100000, default: null },
   },
   { _id: false },
 );
@@ -90,6 +98,10 @@ const gymSchema = new Schema<IGym, GymModel>(
     settings: { type: settingsSchema, default: () => ({}) },
     status: { type: String, enum: Object.values(GYM_STATUS), default: GYM_STATUS.TRIAL, index: true },
     trialEndsAt: { type: Date },
+    plan: { type: String, enum: GYM_PLAN_VALUES, default: null },
+    planPeriodEnd: { type: Date },
+    planPaidAt: { type: Date },
+    lastPaymentId: { type: Schema.Types.ObjectId, ref: 'Payment', default: null },
     deletedAt: { type: Date, default: null },
   },
   { timestamps: true, toJSON: { versionKey: false } },

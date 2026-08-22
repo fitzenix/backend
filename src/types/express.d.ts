@@ -14,6 +14,7 @@ declare global {
       tenantId?: string | null;
       validatedQuery?: unknown;
       rawBody?: Buffer;
+      gymAccess?: import('../modules/billing/billing.access').GymAccessState;
     }
   }
 }

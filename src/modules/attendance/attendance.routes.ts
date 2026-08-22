@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { attendanceController } from './attendance.controller';
 import { authenticate } from '../../middleware/auth';
 import { resolveTenant, requireTenant } from '../../middleware/tenant';
+import { requireActiveGym } from '../../middleware/gymAccess';
 import { authorize } from '../../middleware/rbac';
 import { validate } from '../../middleware/validate';
 import { objectId, paginationQuery } from '../../validators/common';
@@ -30,7 +31,7 @@ const bulkSchema = z.object({
 const STAFF = [ROLES.SUPER_ADMIN, ROLES.GYM_OWNER, ROLES.TRAINER] as const;
 const OWNER = [ROLES.SUPER_ADMIN, ROLES.GYM_OWNER] as const;
 
-router.use(authenticate, resolveTenant, requireTenant);
+router.use(authenticate, resolveTenant, requireTenant, requireActiveGym);
 
 router.get('/', validate({ query: listQuery }), attendanceController.list);
 router.get('/status', attendanceController.status);

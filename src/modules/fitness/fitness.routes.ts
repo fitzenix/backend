@@ -3,6 +3,7 @@ import { workoutController, dietController, progressController, scheduleControll
 import { authenticate } from '../../middleware/auth';
 import { authorize } from '../../middleware/rbac';
 import { resolveTenant, requireTenant } from '../../middleware/tenant';
+import { requireActiveGym } from '../../middleware/gymAccess';
 import { validate } from '../../middleware/validate';
 import { ROLES } from '../../config/constants';
 import { idParam } from '../../validators/common';
@@ -22,7 +23,7 @@ import {
 const router = Router();
 const STAFF = [ROLES.SUPER_ADMIN, ROLES.GYM_OWNER, ROLES.TRAINER] as const;
 
-router.use(authenticate, resolveTenant, requireTenant);
+router.use(authenticate, resolveTenant, requireTenant, requireActiveGym);
 
 // Member schedule (trainer plan OR default weekly rotation from MongoDB)
 router.get('/member-schedule', scheduleController.memberSchedule);

@@ -13,6 +13,7 @@ import {
   GYM_STATUS,
   SUBSCRIPTION_STATUS,
   PAYMENT_STATUS,
+  PAYMENT_PURPOSE,
   INVOICE_STATUS,
   ENQUIRY_STATUS,
   ATTENDANCE_STATUS,
@@ -50,9 +51,23 @@ function formatClock(d: Date): string {
   return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 }
 
-async function sumPaid(match: Record<string, unknown>): Promise<{ totalPaise: number; count: number }> {
+async function sumPaid(
+  match: Record<string, unknown>,
+  includePlatform = false,
+): Promise<{ totalPaise: number; count: number }> {
   const [row] = await Payment.aggregate<{ total: number; count: number }>([
-    { $match: { status: PAYMENT_STATUS.PAID, ...match } },
+    {
+      $match: {
+        status: PAYMENT_STATUS.PAID,
+        ...(includePlatform
+          ? {}
+          : {
+              purpose: { $ne: PAYMENT_PURPOSE.PLATFORM },
+              'notes.purpose': { $ne: PAYMENT_PURPOSE.PLATFORM },
+            }),
+        ...match,
+      },
+    },
     { $group: { _id: null, total: { $sum: '$amountPaise' }, count: { $sum: 1 } } },
   ]);
   return { totalPaise: row?.total ?? 0, count: row?.count ?? 0 };
@@ -61,33 +76,129 @@ async function sumPaid(match: Record<string, unknown>): Promise<{ totalPaise: nu
 export const reportsService = {
   /** Platform-wide dashboard for super_admin. */
   async platform() {
-    const [totalGyms, activeGyms, trialGyms, totalUsers, revenue, monthRevenue, activeSubs, attendanceToday] =
-      await Promise.all([
-        Gym.countDocuments({ deletedAt: null }),
-        Gym.countDocuments({ deletedAt: null, status: GYM_STATUS.ACTIVE }),
-        Gym.countDocuments({ deletedAt: null, status: GYM_STATUS.TRIAL }),
-        User.countDocuments({ deletedAt: null }),
-        sumPaid({}),
-        sumPaid({ paidAt: { $gte: startOfMonth() } }),
-        Subscription.countDocuments({
-          status: SUBSCRIPTION_STATUS.ACTIVE,
-          endDate: { $gte: new Date() },
-        }),
-        Attendance.countDocuments({ checkInAt: { $gte: startOfDay() } }),
-      ]);
+    const monthStart = startOfMonth();
+    const prevMonthStart = startOfPrevMonth();
+    const prevMonthEnd = endOfPrevMonth();
 
-    const usersByRole = await User.aggregate<{ _id: string; count: number }>([
-      { $match: { deletedAt: null } },
-      { $group: { _id: '$role', count: { $sum: 1 } } },
+    const [
+      totalGyms,
+      activeGyms,
+      trialGyms,
+      gymsThisMonth,
+      gymsPrevMonth,
+      totalUsers,
+      usersThisMonth,
+      usersPrevMonth,
+      trainers,
+      trainersThisMonth,
+      trainersPrevMonth,
+      revenue,
+      monthRevenue,
+      prevMonthRevenue,
+      activeSubs,
+      attendanceToday,
+      usersByRole,
+    ] = await Promise.all([
+      Gym.countDocuments({ deletedAt: null }),
+      Gym.countDocuments({ deletedAt: null, status: GYM_STATUS.ACTIVE }),
+      Gym.countDocuments({ deletedAt: null, status: GYM_STATUS.TRIAL }),
+      Gym.countDocuments({ deletedAt: null, createdAt: { $gte: monthStart } }),
+      Gym.countDocuments({ deletedAt: null, createdAt: { $gte: prevMonthStart, $lte: prevMonthEnd } }),
+      User.countDocuments({ deletedAt: null }),
+      User.countDocuments({ deletedAt: null, createdAt: { $gte: monthStart } }),
+      User.countDocuments({ deletedAt: null, createdAt: { $gte: prevMonthStart, $lte: prevMonthEnd } }),
+      User.countDocuments({ deletedAt: null, role: ROLES.TRAINER }),
+      User.countDocuments({ deletedAt: null, role: ROLES.TRAINER, createdAt: { $gte: monthStart } }),
+      User.countDocuments({
+        deletedAt: null,
+        role: ROLES.TRAINER,
+        createdAt: { $gte: prevMonthStart, $lte: prevMonthEnd },
+      }),
+      sumPaid({}, true),
+      sumPaid({ paidAt: { $gte: monthStart } }, true),
+      sumPaid({ paidAt: { $gte: prevMonthStart, $lte: prevMonthEnd } }, true),
+      Subscription.countDocuments({
+        status: SUBSCRIPTION_STATUS.ACTIVE,
+        endDate: { $gte: new Date() },
+      }),
+      Attendance.countDocuments({ checkInAt: { $gte: startOfDay() } }),
+      User.aggregate<{ _id: string; count: number }>([
+        { $match: { deletedAt: null } },
+        { $group: { _id: '$role', count: { $sum: 1 } } },
+      ]),
     ]);
+
+    const pct = (curr: number, prev: number): number | null =>
+      prev > 0 ? Number((((curr - prev) / prev) * 100).toFixed(1)) : null;
 
     return {
       gyms: { total: totalGyms, active: activeGyms, trial: trialGyms },
-      users: { total: totalUsers, byRole: Object.fromEntries(usersByRole.map((r) => [r._id, r.count])) },
+      users: {
+        total: totalUsers,
+        byRole: Object.fromEntries(usersByRole.map((r) => [r._id, r.count])),
+      },
+      trainers,
       revenue: { allTimePaise: revenue.totalPaise, thisMonthPaise: monthRevenue.totalPaise },
       subscriptions: { active: activeSubs },
       attendance: { today: attendanceToday },
+      deltas: {
+        gymsPct: pct(gymsThisMonth, gymsPrevMonth),
+        usersPct: pct(usersThisMonth, usersPrevMonth),
+        revenuePct: pct(monthRevenue.totalPaise, prevMonthRevenue.totalPaise),
+        trainersPct: pct(trainersThisMonth, trainersPrevMonth),
+      },
     };
+  },
+
+  /** Monthly user growth series (owners / trainers / members) for super_admin analytics. */
+  async userGrowth({ months = 6 }: { months?: number }) {
+    const from = startOfMonth(new Date(new Date().setMonth(new Date().getMonth() - (months - 1))));
+    const roles = [ROLES.GYM_OWNER, ROLES.TRAINER, ROLES.MEMBER];
+    const rows = await User.aggregate<{
+      _id: { y: number; m: number; role: string };
+      count: number;
+    }>([
+      {
+        $match: {
+          deletedAt: null,
+          role: { $in: roles },
+          createdAt: { $gte: from },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            y: { $year: '$createdAt' },
+            m: { $month: '$createdAt' },
+            role: '$role',
+          },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { '_id.y': 1, '_id.m': 1 } },
+    ]);
+
+    const byMonth = new Map<string, { year: number; month: number; owners: number; trainers: number; members: number }>();
+    for (let i = 0; i < months; i += 1) {
+      const d = new Date(from.getFullYear(), from.getMonth() + i, 1);
+      const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
+      byMonth.set(key, {
+        year: d.getFullYear(),
+        month: d.getMonth() + 1,
+        owners: 0,
+        trainers: 0,
+        members: 0,
+      });
+    }
+    for (const r of rows) {
+      const key = `${r._id.y}-${r._id.m}`;
+      const bucket = byMonth.get(key);
+      if (!bucket) continue;
+      if (r._id.role === ROLES.GYM_OWNER) bucket.owners = r.count;
+      else if (r._id.role === ROLES.TRAINER) bucket.trainers = r.count;
+      else if (r._id.role === ROLES.MEMBER) bucket.members = r.count;
+    }
+    return [...byMonth.values()];
   },
 
   /** Gym dashboard for gym_owner / super_admin (scoped by gymId). */
@@ -161,7 +272,9 @@ export const reportsService = {
         ...gymMatch,
         status: { $in: [ENQUIRY_STATUS.NEW, ENQUIRY_STATUS.CONTACTED] },
       }),
-      Invoice.find({ ...gymMatch, status: INVOICE_STATUS.UNPAID }).select('member').lean(),
+      Invoice.find({ ...gymMatch, status: INVOICE_STATUS.UNPAID, number: { $not: /^FX-/ } })
+        .select('member')
+        .lean(),
       Subscription.find({
         ...gymMatch,
         status: SUBSCRIPTION_STATUS.ACTIVE,
@@ -211,11 +324,13 @@ export const reportsService = {
   /**
    * Recent gym activity feed for owner dashboard (check-ins, joins, payments, expiries, enquiries).
    */
-  async gymActivity(gymId: string, limit = 20) {
+  async gymActivity(gymId: string, limit = 20, page = 1) {
     const gymOid = new Types.ObjectId(gymId);
     const gymMatch = { gym: gymOid };
     const take = Math.min(Math.max(limit, 1), 50);
-    const perSource = Math.ceil(take / 2);
+    const pageNum = Math.max(1, page);
+    const fetchWindow = take * pageNum;
+    const perSource = Math.min(120, Math.max(take, Math.ceil(fetchWindow / 2) + take));
 
     const [checkIns, newMembers, payments, expiring, enquiries] = await Promise.all([
       Attendance.find({ ...gymMatch })
@@ -228,7 +343,12 @@ export const reportsService = {
         .limit(perSource)
         .select('name createdAt')
         .lean(),
-      Payment.find({ ...gymMatch, status: PAYMENT_STATUS.PAID })
+      Payment.find({
+        ...gymMatch,
+        status: PAYMENT_STATUS.PAID,
+        purpose: { $ne: PAYMENT_PURPOSE.PLATFORM },
+        'notes.purpose': { $ne: PAYMENT_PURPOSE.PLATFORM },
+      })
         .sort({ paidAt: -1 })
         .limit(perSource)
         .populate('member', 'name')
@@ -311,10 +431,27 @@ export const reportsService = {
     }
 
     items.sort((a, b) => b.at.getTime() - a.at.getTime());
-    return items.slice(0, take).map((i) => ({
-      ...i,
-      at: i.at.toISOString(),
-    }));
+    const start = (pageNum - 1) * take;
+    const pageItems = items.slice(start, start + take);
+    const sourceCapped =
+      checkIns.length >= perSource ||
+      newMembers.length >= perSource ||
+      payments.length >= perSource ||
+      expiring.length >= perSource ||
+      enquiries.length >= perSource;
+    const hasMore =
+      items.length > start + pageItems.length || (sourceCapped && pageItems.length === take);
+    const total = hasMore ? start + pageItems.length + take : start + pageItems.length;
+
+    return {
+      items: pageItems.map((i) => ({
+        ...i,
+        at: i.at.toISOString(),
+      })),
+      page: pageNum,
+      limit: take,
+      total,
+    };
   },
 
   /**
@@ -629,8 +766,15 @@ export const reportsService = {
   /** Revenue time series (last N months) for a gym or the whole platform. */
   async revenueSeries({ gymId = null, months = 6 }: { gymId?: string | null; months?: number }) {
     const from = startOfMonth(new Date(new Date().setMonth(new Date().getMonth() - (months - 1))));
-    const match: Record<string, unknown> = { status: PAYMENT_STATUS.PAID, paidAt: { $gte: from } };
-    if (gymId) match.gym = new Types.ObjectId(gymId);
+    const match: Record<string, unknown> = {
+      status: PAYMENT_STATUS.PAID,
+      paidAt: { $gte: from },
+    };
+    if (gymId) {
+      match.gym = new Types.ObjectId(gymId);
+      match.purpose = { $ne: PAYMENT_PURPOSE.PLATFORM };
+      match['notes.purpose'] = { $ne: PAYMENT_PURPOSE.PLATFORM };
+    }
 
     const pipeline: PipelineStage[] = [
       { $match: match },

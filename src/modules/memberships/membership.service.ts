@@ -82,7 +82,7 @@ export const membershipService = {
         .sort(sort)
         .skip(skip)
         .limit(limit)
-        .populate('member', 'name email')
+        .populate('member', 'name email phone avatar status')
         .populate('plan', 'name durationDays pricePaise'),
       Subscription.countDocuments(filter),
     ]);
@@ -290,6 +290,42 @@ export const membershipService = {
       { $set: { status: SUBSCRIPTION_STATUS.EXPIRED } },
     );
     return { expired: res.modifiedCount };
+  },
+
+  /** Super-admin platform subscription KPIs. */
+  async platformSummary() {
+    const now = new Date();
+    const in7 = new Date(Date.now() + 7 * 86_400_000);
+    const [totalPlans, active, expiringSoon, cancelled] = await Promise.all([
+      MembershipPlan.countDocuments({ deletedAt: null }),
+      Subscription.countDocuments({ status: SUBSCRIPTION_STATUS.ACTIVE, endDate: { $gte: now } }),
+      Subscription.countDocuments({
+        status: SUBSCRIPTION_STATUS.ACTIVE,
+        endDate: { $gte: now, $lte: in7 },
+      }),
+      Subscription.countDocuments({ status: SUBSCRIPTION_STATUS.CANCELLED }),
+    ]);
+    return { totalPlans, active, expiringSoon, cancelled };
+  },
+
+  /** Super-admin cross-gym subscriptions list. */
+  async platformSubscriptions(ctx: Ctx): Promise<Paginated<SubscriptionDocument>> {
+    const q = (ctx.validatedQuery ?? {}) as ListQuery;
+    const { page, limit, skip, sort } = parseListQuery(q);
+    const filter: FilterQuery<ISubscription> = {};
+    if (q.status) filter.status = q.status;
+
+    const [items, total] = await Promise.all([
+      Subscription.find(filter)
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .populate('gym', 'name')
+        .populate('member', 'name email phone avatar status')
+        .populate('plan', 'name durationDays pricePaise'),
+      Subscription.countDocuments(filter),
+    ]);
+    return { items, page, limit, total };
   },
 };
 

@@ -3,6 +3,7 @@ import { paymentController } from './payment.controller';
 import { authenticate } from '../../middleware/auth';
 import { authorize } from '../../middleware/rbac';
 import { resolveTenant, requireTenant } from '../../middleware/tenant';
+import { requireActiveGym } from '../../middleware/gymAccess';
 import { validate } from '../../middleware/validate';
 import { ROLES } from '../../config/constants';
 import { idParam } from '../../validators/common';
@@ -13,7 +14,7 @@ const router = Router();
 // Public webhook (signature-verified inside the handler). No auth/tenant.
 router.post('/webhook', paymentController.webhook);
 
-router.use(authenticate, resolveTenant, requireTenant);
+router.use(authenticate, resolveTenant, requireTenant, requireActiveGym);
 
 router.get('/', validate({ query: listQuery }), paymentController.list);
 router.post('/checkout', validate({ body: checkoutSchema }), paymentController.checkout);

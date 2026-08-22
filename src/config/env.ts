@@ -7,8 +7,12 @@ const toNumber = (value: string | undefined, fallback: number): number => {
   return Number.isFinite(n) ? n : fallback;
 };
 
+/** Strip inline comments and surrounding whitespace from env values. */
+const envStr = (value: string | undefined, fallback = ''): string =>
+  (value ?? fallback).split('#')[0].trim();
+
 const toList = (value: string | undefined): string[] =>
-  (value || '')
+  envStr(value)
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
@@ -35,7 +39,7 @@ export const env = {
   },
 
   bcryptRounds: toNumber(process.env.BCRYPT_ROUNDS, 10),
-  otpTtlSeconds: toNumber(process.env.OTP_TTL_SECONDS, 300),
+  otpTtlSeconds: toNumber(process.env.OTP_TTL_SECONDS, 600),
 
   rateLimit: {
     windowMs: toNumber(process.env.RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000),
@@ -61,11 +65,11 @@ export const env = {
   },
 
   payments: {
-    gateway: (process.env.PAYMENT_GATEWAY ?? 'mock') as 'razorpay' | 'mock',
+    gateway: envStr(process.env.PAYMENT_GATEWAY, 'mock') as 'razorpay' | 'mock',
     razorpay: {
-      keyId: process.env.RAZORPAY_KEY_ID ?? '',
-      keySecret: process.env.RAZORPAY_KEY_SECRET ?? '',
-      webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET ?? '',
+      keyId: envStr(process.env.RAZORPAY_KEY_ID),
+      keySecret: envStr(process.env.RAZORPAY_KEY_SECRET),
+      webhookSecret: envStr(process.env.RAZORPAY_WEBHOOK_SECRET),
     },
   },
 
@@ -78,6 +82,38 @@ export const env = {
   },
 
   redisUrl: process.env.REDIS_URL ?? '',
+
+  /**
+   * Transactional email. Default driver is Resend (https://resend.com/).
+   * Set MAIL_DRIVER=zoho later to send through Zoho SMTP with the same templates.
+   */
+  mail: {
+    driver: envStr(process.env.MAIL_DRIVER, 'resend') as 'resend' | 'zoho' | 'log',
+    fromName: envStr(process.env.MAIL_FROM_NAME, process.env.SMTP_FROM_NAME || 'Fitzenix'),
+    fromEmail: envStr(
+      process.env.MAIL_FROM_EMAIL,
+      process.env.SMTP_FROM_EMAIL || 'Fitzenix <onboarding@resend.dev>',
+    ),
+    replyTo: envStr(process.env.MAIL_REPLY_TO, process.env.SMTP_REPLY_TO || process.env.SUPPORT_EMAIL || ''),
+    resendApiKey: envStr(process.env.RESEND_API_KEY),
+  },
+
+  /** Optional Zoho SMTP — used when MAIL_DRIVER=zoho. */
+  smtp: {
+    host: envStr(process.env.SMTP_HOST, 'smtp.zoho.in'),
+    port: toNumber(process.env.SMTP_PORT, 465),
+    secure: process.env.SMTP_SECURE !== 'false',
+    user: envStr(process.env.SMTP_USER),
+    pass: envStr(process.env.SMTP_PASS),
+    fromName: envStr(process.env.SMTP_FROM_NAME, 'Fitzenix'),
+    fromEmail: envStr(process.env.SMTP_FROM_EMAIL, process.env.SMTP_USER ?? 'noreply@fitzenix.com'),
+    replyTo: envStr(process.env.SMTP_REPLY_TO),
+  },
+  app: {
+    name: envStr(process.env.APP_NAME, 'Fitzenix'),
+    webUrl: envStr(process.env.APP_WEB_URL, 'https://fitzenix.com'),
+    supportEmail: envStr(process.env.SUPPORT_EMAIL, 'support@fitzenix.com'),
+  },
 } as const;
 
 export type Env = typeof env;

@@ -19,13 +19,23 @@ export const loginSchema = z.object({
 export const refreshSchema = z.object({ refreshToken: z.string().min(10) });
 export const logoutSchema = z.object({ refreshToken: z.string().min(10).optional() });
 export const forgotPasswordSchema = z.object({ email });
-export const resetPasswordSchema = z.object({ token: z.string().min(10), password });
+export const resetPasswordSchema = z
+  .object({
+    email,
+    otp: z.string().length(6, 'Reset code must be 6 digits'),
+    password,
+    confirmPassword: password,
+  })
+  .refine(d => d.password === d.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: password,
 });
 
-export const otpPurpose = z.enum(['login', 'verify_email', 'reset']);
+export const otpPurpose = z.enum(['login', 'verify_email', 'reset', 'gym_transfer']);
 export const requestOtpSchema = z.object({ email, purpose: otpPurpose.default('verify_email') });
 export const verifyOtpSchema = z.object({
   email,

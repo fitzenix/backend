@@ -35,6 +35,32 @@ export const GYM_STATUS = {
 } as const;
 export type GymStatus = (typeof GYM_STATUS)[keyof typeof GYM_STATUS];
 
+/** Fitzenix SaaS plans sold to gym owners (not member memberships). */
+export const GYM_PLANS = {
+  STARTER: 'starter',
+  GROWTH: 'growth',
+  PRO: 'pro',
+} as const;
+export type GymPlanId = (typeof GYM_PLANS)[keyof typeof GYM_PLANS];
+export const GYM_PLAN_VALUES: readonly GymPlanId[] = Object.values(GYM_PLANS);
+
+export const GYM_FEATURES = {
+  MEMBERS: 'members',
+  CHECKIN: 'checkin',
+  ATTENDANCE: 'attendance',
+  PAYMENTS: 'payments',
+  REPORTS: 'reports',
+  CRM: 'crm',
+  APPS: 'apps',
+  ANALYTICS: 'analytics',
+  MULTI_STAFF: 'multi_staff',
+  PRIORITY_SUPPORT: 'priority_support',
+} as const;
+export type GymFeature = (typeof GYM_FEATURES)[keyof typeof GYM_FEATURES];
+
+export const TRIAL_DAYS = 14;
+export const PLAN_PERIOD_DAYS = 30;
+
 export const SUBSCRIPTION_STATUS = {
   ACTIVE: 'active',
   EXPIRED: 'expired',
@@ -50,6 +76,14 @@ export const PAYMENT_STATUS = {
   REFUNDED: 'refunded',
 } as const;
 export type PaymentStatus = (typeof PAYMENT_STATUS)[keyof typeof PAYMENT_STATUS];
+
+/** `platform` = gym owner paying Fitzenix (SaaS). Never count as gym membership revenue. */
+export const PAYMENT_PURPOSE = {
+  SUBSCRIPTION: 'subscription',
+  MANUAL: 'manual',
+  PLATFORM: 'platform',
+} as const;
+export type PaymentPurpose = (typeof PAYMENT_PURPOSE)[keyof typeof PAYMENT_PURPOSE];
 
 export const ATTENDANCE_STATUS = {
   CHECKED_IN: 'checked_in',
@@ -95,6 +129,7 @@ export const PUSH_EVENTS = {
   // Member
   MEMBER_WELCOME: 'member.welcome',
   MEMBER_MEMBERSHIP_EXPIRY: 'member.membership_expiry',
+  MEMBER_MEMBERSHIP_LAPSED: 'member.membership_lapsed',
   MEMBER_MEMBERSHIP_RENEWED: 'member.membership_renewed',
   MEMBER_PAYMENT_SUCCESS: 'member.payment_success',
   MEMBER_WORKOUT_REMINDER: 'member.workout_reminder',

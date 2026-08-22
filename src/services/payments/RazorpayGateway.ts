@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { env } from '../../config/env';
 import { CURRENCY } from '../../config/constants';
+import { ApiError } from '../../utils/ApiError';
 import type {
   PaymentGateway,
   CreateOrderInput,
@@ -28,21 +29,41 @@ export class RazorpayGateway implements PaymentGateway {
 
   private async getClient(): Promise<RazorpayClient> {
     if (this.client) return this.client;
+    const keyId = env.payments.razorpay.keyId;
+    const keySecret = env.payments.razorpay.keySecret;
+    if (!keyId || !keySecret) {
+      throw ApiError.badRequest(
+        'Razorpay keys are missing. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET, then restart the server.',
+      );
+    }
     const RazorpayCtor = (await import('razorpay')).default as unknown as new (opts: {
       key_id: string;
       key_secret: string;
     }) => RazorpayClient;
     this.client = new RazorpayCtor({
-      key_id: env.payments.razorpay.keyId,
-      key_secret: env.payments.razorpay.keySecret,
+      key_id: keyId,
+      key_secret: keySecret,
     });
     return this.client;
   }
 
-  async createOrder({ amountPaise, currency = CURRENCY, receipt, notes }: CreateOrderInput): Promise<GatewayOrder> {
+  async createOrder({ amountPaise, currency = CURRENCY, receipt, notes, method }: CreateOrderInput): Promise<GatewayOrder> {
     const client = await this.getClient();
-    const order = await client.orders.create({ amount: amountPaise, currency, receipt, notes });
-    return { id: order.id, amount: order.amount, currency: order.currency, raw: order };
+    const stringNotes = Object.fromEntries(
+      Object.entries(notes ?? {}).map(([k, v]) => [k, v == null ? '' : String(v)]),
+    );
+    try {
+      const order = await client.orders.create({
+        amount: amountPaise,
+        currency,
+        receipt: (receipt ?? `fx_${Date.now()}`).slice(0, 40),
+        notes: stringNotes,
+        ...(method ? { method } : {}),
+      });
+      return { id: order.id, amount: order.amount, currency: order.currency, raw: order };
+    } catch (err) {
+      throw mapRazorpayError(err);
+    }
   }
 
   verifyPaymentSignature({ orderId, paymentId, signature }: VerifyPaymentSignatureInput): boolean {
@@ -63,9 +84,24 @@ export class RazorpayGateway implements PaymentGateway {
 
   async refund({ paymentId, amountPaise }: RefundInput): Promise<GatewayRefund> {
     const client = await this.getClient();
-    const refund = await client.payments.refund(paymentId, { amount: amountPaise });
-    return { id: refund.id, status: refund.status, amount: refund.amount, raw: refund };
+    try {
+      const refund = await client.payments.refund(paymentId, { amount: amountPaise });
+      return { id: refund.id, status: refund.status, amount: refund.amount, raw: refund };
+    } catch (err) {
+      throw mapRazorpayError(err);
+    }
   }
+}
+
+function mapRazorpayError(err: unknown): never {
+  const e = err as { statusCode?: number; error?: { description?: string }; message?: string };
+  const description = e?.error?.description || e?.message || 'Razorpay request failed';
+  if (e?.statusCode === 401) {
+    throw ApiError.badRequest(
+      'Razorpay authentication failed. Check RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET and restart the backend.',
+    );
+  }
+  throw ApiError.badRequest(description);
 }
 
 function safeEqual(expected: string, actual: string | undefined): boolean {

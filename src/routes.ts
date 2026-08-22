@@ -13,6 +13,8 @@ import notificationRoutes from './modules/notifications/notification.routes';
 import reportRoutes from './modules/reports/reports.routes';
 import financeRoutes from './modules/finance/finance.routes';
 import enquiryRoutes from './modules/enquiries/enquiry.routes';
+import importRoutes from './modules/imports/import.routes';
+import billingRoutes from './modules/billing/billing.routes';
 
 const router = Router();
 
@@ -34,5 +36,7 @@ router.use('/notifications', notificationRoutes);
 router.use('/reports', reportRoutes);
 router.use('/finance', financeRoutes);
 router.use('/enquiries', enquiryRoutes);
+router.use('/imports', importRoutes);
+router.use('/billing', billingRoutes);
 
 export default router;

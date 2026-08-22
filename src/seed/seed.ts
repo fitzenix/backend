@@ -83,6 +83,9 @@ async function seed(): Promise<void> {
     email: 'hello@ironforge.com',
     phone: '+919876543210',
     status: GYM_STATUS.ACTIVE,
+    plan: 'pro',
+    planPeriodEnd: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+    planPaidAt: new Date(),
     address: { line1: '12 MG Road', city: 'Bengaluru', state: 'Karnataka', pincode: '560001' },
     branding: { primaryColor: '#E17055', tagline: 'Forge your best self' },
   });
