@@ -47,6 +47,16 @@ export const membershipController = {
     const data = await membershipService.myPlan(req);
     sendSuccess(res, { data });
   }),
+
+  platformSummary: asyncHandler<AuthedRequest>(async (_req, res) => {
+    const data = await membershipService.platformSummary();
+    sendSuccess(res, { data });
+  }),
+
+  platformSubscriptions: asyncHandler<AuthedRequest>(async (req, res) => {
+    const { items, page, limit, total } = await membershipService.platformSubscriptions(req);
+    sendSuccess(res, { data: items, meta: paginationMeta({ page, limit, total }) });
+  }),
 };
 
 export default membershipController;

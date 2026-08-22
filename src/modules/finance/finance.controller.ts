@@ -61,6 +61,16 @@ export const financeController = {
     const data = await financeService.listPendingMembers(req);
     sendSuccess(res, { data });
   }),
+
+  platformSummary: asyncHandler<AuthedRequest>(async (_req, res) => {
+    const data = await financeService.platformSummary();
+    sendSuccess(res, { data });
+  }),
+
+  platformTransactions: asyncHandler<AuthedRequest>(async (req, res) => {
+    const { items, page, limit, total } = await financeService.platformTransactions(req);
+    sendSuccess(res, { data: items, meta: paginationMeta({ page, limit, total }) });
+  }),
 };
 
 export default financeController;
