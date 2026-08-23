@@ -24,6 +24,7 @@ export function createApp(): Application {
       filter: (req, res) => {
         // Never gzip check-in stickers — RN blob clients treat length mismatch as interrupt.
         if (req.url?.includes('/attendance/check-in-sticker')) return false;
+        if (req.url?.includes('/imports/template')) return false;
         if (res.getHeader('Content-Type') === 'image/png') return false;
         return compression.filter(req, res);
       },

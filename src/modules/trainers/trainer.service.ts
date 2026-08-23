@@ -19,6 +19,7 @@ function requireTenant(ctx: Ctx): string {
 export const trainerService = {
   async listTrainers(ctx: Ctx): Promise<Paginated<UserDocument>> {
     const gym = requireTenant(ctx);
+    const q = (ctx.validatedQuery ?? {}) as { status?: IUser['status'] };
     const { page, limit, skip, sort, search } = parseListQuery(ctx.validatedQuery ?? {});
     const filter: FilterQuery<IUser> = {
       gym,
@@ -26,6 +27,7 @@ export const trainerService = {
       deletedAt: null,
       ...buildSearchFilter(search, ['name', 'email']),
     };
+    if (q.status) filter.status = q.status;
     const [items, total] = await Promise.all([
       User.find(filter).sort(sort).skip(skip).limit(limit),
       User.countDocuments(filter),
@@ -75,6 +77,7 @@ export const trainerService = {
 
   async myMembers(ctx: Ctx, trainerId: Types.ObjectId | string): Promise<Paginated<UserDocument>> {
     const gym = requireTenant(ctx);
+    const q = (ctx.validatedQuery ?? {}) as { status?: IUser['status'] };
     const { page, limit, skip, sort, search } = parseListQuery(ctx.validatedQuery ?? {});
     const filter: FilterQuery<IUser> = {
       gym,
@@ -83,6 +86,7 @@ export const trainerService = {
       'memberProfile.assignedTrainer': trainerId,
       ...buildSearchFilter(search, ['name', 'email']),
     };
+    if (q.status) filter.status = q.status;
     const [items, total] = await Promise.all([
       User.find(filter).sort(sort).skip(skip).limit(limit),
       User.countDocuments(filter),

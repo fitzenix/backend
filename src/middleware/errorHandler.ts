@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction, ErrorRequestHandler } from 'express';
+import { MulterError } from 'multer';
 import { ZodError } from 'zod';
 import mongoose from 'mongoose';
 import { ApiError, type ErrorCode } from '../utils/ApiError';
@@ -49,6 +50,16 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
     code = 'CONFLICT';
     message = 'Duplicate value violates a unique constraint';
     details = (err as MongoDuplicateError).keyValue;
+  } else if (err instanceof MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      statusCode = 413;
+      code = 'PAYLOAD_TOO_LARGE';
+      message = 'File is too large. Max 8 MB.';
+    } else {
+      statusCode = 400;
+      code = 'BAD_REQUEST';
+      message = err.message || 'File upload failed';
+    }
   } else if ((err as { type?: string })?.type === 'entity.too.large') {
     statusCode = 413;
     code = 'PAYLOAD_TOO_LARGE';

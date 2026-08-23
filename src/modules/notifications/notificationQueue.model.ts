@@ -50,7 +50,7 @@ const queueSchema = new Schema<INotificationQueue, NotificationQueueModel>(
     attempts: { type: Number, default: 0 },
     maxAttempts: { type: Number, default: 3 },
     lastError: { type: String },
-    dedupeKey: { type: String },
+    dedupeKey: { type: String, index: true },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     deletedAt: { type: Date, default: null },

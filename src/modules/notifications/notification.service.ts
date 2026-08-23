@@ -166,7 +166,22 @@ export const notificationService = {
     data: Record<string, unknown>;
   }): Promise<{ sent: number; failed: number }> {
     const devices = await deviceTokenService.listActiveTokensForUser(args.userId);
-    if (!devices.length) return { sent: 0, failed: 0 };
+    if (!devices.length) {
+      logger.warn(
+        { userId: args.userId, notificationId: args.notificationId },
+        'Push skipped — no active FCM device tokens for user (app must register via POST /notifications/devices)',
+      );
+      await NotificationLog.create({
+        notification: args.notificationId,
+        user: args.userId,
+        gym: args.gymId,
+        event: args.event,
+        channel: 'push',
+        status: 'failed',
+        meta: { reason: 'no_device_token' },
+      });
+      return { sent: 0, failed: 0 };
+    }
 
     const stringData: Record<string, string> = {};
     for (const [k, v] of Object.entries(args.data)) {
