@@ -292,6 +292,10 @@ export const authService = {
     if (purpose === 'verify_email') {
       user.emailVerified = true;
       if (user.status === USER_STATUS.PENDING) user.status = USER_STATUS.ACTIVE;
+      user.lastLoginAt = new Date();
+      await user.save();
+      const tokens = await issueTokens(user, ctx);
+      return { verified: true as const, emailVerified: true as const, user, ...tokens };
     }
     await user.save();
 
