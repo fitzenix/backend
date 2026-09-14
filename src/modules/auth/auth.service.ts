@@ -124,19 +124,21 @@ export const authService = {
     created.user.otpPurpose = 'verify_email';
     await created.user.save();
 
-    await mailService.send(
-      created.user.email,
-      welcomeEmail({ name: created.user.name, gymName: created.gym.name }),
-    );
-    await mailService.send(
-      created.user.email,
-      otpEmail({
-        name: created.user.name,
-        code: otp,
-        purpose: 'verify_email',
-        minutes: Math.round(env.otpTtlSeconds / 60),
-      }),
-    );
+    void Promise.all([
+      mailService.send(
+        created.user.email,
+        welcomeEmail({ name: created.user.name, gymName: created.gym.name }),
+      ),
+      mailService.send(
+        created.user.email,
+        otpEmail({
+          name: created.user.name,
+          code: otp,
+          purpose: 'verify_email',
+          minutes: Math.round(env.otpTtlSeconds / 60),
+        }),
+      ),
+    ]);
 
     return {
       needsEmailVerification: true as const,
