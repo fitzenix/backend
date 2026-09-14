@@ -17,6 +17,10 @@ const toList = (value: string | undefined): string[] =>
     .map((s) => s.trim())
     .filter(Boolean);
 
+const normalizeOrigin = (origin: string): string => origin.replace(/\/+$/, '');
+
+const configuredCorsOrigins = toList(process.env.CORS_ORIGINS).map(normalizeOrigin);
+
 /**
  * Centralised, validated environment configuration. Every module imports from
  * here rather than reading `process.env` directly.
@@ -27,9 +31,13 @@ export const env = {
   isTest: process.env.NODE_ENV === 'test',
   port: toNumber(process.env.PORT, 4000),
   apiPrefix: process.env.API_PREFIX ?? '/api/v1',
-  corsOrigins: toList(
-    process.env.CORS_ORIGINS ||
-      'https://www.fitzenix.app,http://localhost:3000,http://localhost:5173',
+  corsOrigins: Array.from(
+    new Set([
+      'https://www.fitzenix.app',
+      'http://localhost:3000',
+      'http://localhost:5173',
+      ...configuredCorsOrigins,
+    ]),
   ),
 
   mongoUri: process.env.MONGO_URI ?? 'mongodb://127.0.0.1:27017/fitzenix',
