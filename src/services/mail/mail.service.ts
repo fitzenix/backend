@@ -45,6 +45,9 @@ function getSmtpTransport(): Transporter | null {
       port: env.smtp.port,
       // Port 587 = STARTTLS (secure: false). Port 465 = TLS (secure: true).
       secure: env.smtp.secure,
+      connectionTimeout: env.smtp.connectionTimeoutMs,
+      greetingTimeout: env.smtp.greetingTimeoutMs,
+      socketTimeout: env.smtp.socketTimeoutMs,
       auth: {
         user: env.smtp.user,
         pass: env.smtp.pass,
@@ -66,17 +69,30 @@ function getZeptoApi(): SendMailClient | null {
 }
 
 async function sendViaSmtp(to: string, template: MailTemplate): Promise<void> {
-  const transport = getSmtpTransport();
-  if (!transport) throw new Error('SMTP is not configured (SMTP_USER / SMTP_PASS)');
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const transport = getSmtpTransport();
+    if (!transport) throw new Error('SMTP is not configured (SMTP_USER / SMTP_PASS)');
 
-  await transport.sendMail({
-    from: fromAddress(),
-    replyTo: env.mail.replyTo || undefined,
-    to,
-    subject: template.subject,
-    text: template.text,
-    html: template.html,
-  });
+    try {
+      await transport.sendMail({
+        from: fromAddress(),
+        replyTo: env.mail.replyTo || undefined,
+        to,
+        subject: template.subject,
+        text: template.text,
+        html: template.html,
+      });
+      return;
+    } catch (err) {
+      lastError = err;
+      smtpTransport = null;
+      transport.close();
+      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+
+  throw lastError;
 }
 
 async function sendViaZeptoApi(to: string, template: MailTemplate): Promise<void> {

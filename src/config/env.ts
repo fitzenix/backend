@@ -132,6 +132,9 @@ export const env = {
     port: toNumber(process.env.SMTP_PORT, 587),
     /** false for port 587 (STARTTLS); true for port 465 */
     secure: process.env.SMTP_SECURE === 'true',
+    connectionTimeoutMs: toNumber(process.env.SMTP_CONNECTION_TIMEOUT_MS, 10000),
+    greetingTimeoutMs: toNumber(process.env.SMTP_GREETING_TIMEOUT_MS, 10000),
+    socketTimeoutMs: toNumber(process.env.SMTP_SOCKET_TIMEOUT_MS, 20000),
     user: envStr(process.env.SMTP_USER, 'emailapikey'),
     pass: envStr(process.env.SMTP_PASS),
     fromName: envStr(process.env.SMTP_FROM_NAME, 'Fitzenix'),
