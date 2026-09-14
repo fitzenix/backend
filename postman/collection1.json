@@ -1,0 +1,1296 @@
+{
+  "info": {
+    "_postman_id": "fitzenix-api-collection-v1-missing",
+    "name": "Fitzenix API \u2014 Missing APIs (collection1)",
+    "description": "Extra Fitzenix endpoints NOT in the main Fitzenix API collection.\\n\\nHow to use:\\n1. Import this file into Postman (Import \u2192 Upload Files).\\n2. Reuse the same variables as the main collection: baseUrl, accessToken, gymId, memberId, userId, notificationId, etc.\\n3. Log in via the main collection first (or paste accessToken here).\\n4. Money amounts are INR paise integers.\\n\\nCovers: Notifications, Finance, Enquiries, Attendance extras, Fitness templates, Users avatar, Reports activity/user-growth, Memberships my-plan + platform, Super Admin gym create + platform finance.\\n\\nSmoke (Super Admin \u2014 login as admin@fitzenix.com):\\n1) POST auth/login \u2192 set accessToken\\n2) GET /reports/dashboard (or platform) \u2014 KPIs + deltas\\n3) GET /reports/user-growth?months=6\\n4) GET /gyms \u2192 POST /gyms (create) \u2192 GET /gyms/:id\\n5) PATCH /gyms/:id/status {status:suspended}\\n6) GET /users?limit=20 \u2192 GET /users/:id\\n7) GET /finance/platform/summary \u2192 GET /finance/platform/transactions\\n8) GET /memberships/platform/summary \u2192 GET /memberships/platform/subscriptions\\n9) GET /notifications \u2192 PATCH read / POST read-all\\nApp: Dashboard KPIs \u2192 Gyms \u2192 Add/Detail \u2192 Users \u2192 Detail \u2192 Finance \u2192 Subscriptions \u2192 Notifications",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:4000/api/v1"
+    },
+    {
+      "key": "origin",
+      "value": "http://localhost:4000"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "refreshToken",
+      "value": ""
+    },
+    {
+      "key": "gymId",
+      "value": ""
+    },
+    {
+      "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "memberId",
+      "value": ""
+    },
+    {
+      "key": "trainerId",
+      "value": ""
+    },
+    {
+      "key": "notificationId",
+      "value": ""
+    },
+    {
+      "key": "deviceId",
+      "value": "fz_android_postman_test_01"
+    },
+    {
+      "key": "fcmToken",
+      "value": "REPLACE_WITH_REAL_FCM_TOKEN_MIN_20_CHARS"
+    },
+    {
+      "key": "expenseId",
+      "value": ""
+    },
+    {
+      "key": "financeInvoiceId",
+      "value": ""
+    },
+    {
+      "key": "enquiryId",
+      "value": ""
+    },
+    {
+      "key": "workoutTemplateId",
+      "value": ""
+    },
+    {
+      "key": "email",
+      "value": "owner@fitzenix.com"
+    },
+    {
+      "key": "password",
+      "value": "Secret123!"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "1. Notifications (push / devices / send)",
+      "item": [
+        {
+          "name": "Unread Count",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/notifications/unread-count"
+          }
+        },
+        {
+          "name": "Get Preferences",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/notifications/preferences"
+          }
+        },
+        {
+          "name": "Update Preferences",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workoutReminder\": true,\n  \"dietReminder\": true,\n  \"marketing\": false,\n  \"offers\": true,\n  \"attendance\": true,\n  \"payments\": true,\n  \"membership\": true,\n  \"systemUpdates\": true,\n  \"emergencyAlerts\": true,\n  \"chat\": true,\n  \"quietHours\": {\n    \"enabled\": true,\n    \"start\": \"22:00\",\n    \"end\": \"07:00\"\n  }\n}"
+            },
+            "url": "{{baseUrl}}/notifications/preferences"
+          }
+        },
+        {
+          "name": "Analytics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/analytics?days=30",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "analytics"
+              ],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "30"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Register Device (FCM)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fcmToken\": \"{{fcmToken}}\",\n  \"deviceId\": \"{{deviceId}}\",\n  \"platform\": \"android\",\n  \"appVersion\": \"1.0.0\",\n  \"osVersion\": \"15\"\n}"
+            },
+            "url": "{{baseUrl}}/notifications/devices"
+          }
+        },
+        {
+          "name": "Unregister Device",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deviceId\": \"{{deviceId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/notifications/devices"
+          }
+        },
+        {
+          "name": "Send Push (single user)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"gymId\": \"{{gymId}}\",\n  \"type\": \"system\",\n  \"event\": \"member.welcome\",\n  \"title\": \"Push test\",\n  \"body\": \"If you see this, FCM works\",\n  \"data\": {\n    \"deepLink\": \"Notifications\"\n  },\n  \"force\": true,\n  \"dedupeKey\": \"postman-test-{{$timestamp}}\"\n}"
+            },
+            "url": "{{baseUrl}}/notifications/send"
+          }
+        },
+        {
+          "name": "Owner \u2192 Member: 3-day expiry reminder (ONE CLICK)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{memberId}}\",\n  \"gymId\": \"{{gymId}}\",\n  \"type\": \"membership\",\n  \"event\": \"member.membership_expiry\",\n  \"title\": \"Membership expiring soon\",\n  \"body\": \"Your membership expires in 3 day(s). Renew to keep access.\",\n  \"data\": {\n    \"daysRemaining\": 3,\n    \"deepLink\": \"Plan\",\n    \"subscriptionId\": \"{{subscriptionId}}\"\n  },\n  \"force\": true,\n  \"dedupeKey\": \"membership_expiry_test:{{memberId}}:3:{{$timestamp}}\"\n}"
+            },
+            "url": "{{baseUrl}}/notifications/send"
+          }
+        },
+        {
+          "name": "Owner \u2192 Members: bulk 3-day expiry reminders",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userIds\": [\"{{memberId}}\"],\n  \"gymId\": \"{{gymId}}\",\n  \"type\": \"membership\",\n  \"event\": \"member.membership_expiry\",\n  \"title\": \"Membership expiring soon\",\n  \"body\": \"Your membership expires in 3 day(s). Renew to keep access.\",\n  \"data\": {\n    \"daysRemaining\": 3,\n    \"deepLink\": \"Plan\"\n  },\n  \"force\": true\n}"
+            },
+            "url": "{{baseUrl}}/notifications/send/bulk"
+          }
+        },
+        {
+          "name": "Send Push (bulk)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userIds\": [\"{{userId}}\", \"{{memberId}}\"],\n  \"gymId\": \"{{gymId}}\",\n  \"type\": \"announcement\",\n  \"event\": \"owner.daily_report\",\n  \"title\": \"Gym announcement\",\n  \"body\": \"Bulk push test from Postman\",\n  \"data\": {\n    \"deepLink\": \"ActivityFeed\"\n  },\n  \"force\": true\n}"
+            },
+            "url": "{{baseUrl}}/notifications/send/bulk"
+          }
+        },
+        {
+          "name": "Send Push (topic)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"topic\": \"gym_{{gymId}}\",\n  \"type\": \"announcement\",\n  \"event\": \"owner.weekly_report\",\n  \"title\": \"Topic broadcast\",\n  \"body\": \"Hello gym members\",\n  \"data\": {\n    \"deepLink\": \"Notifications\"\n  },\n  \"gymId\": \"{{gymId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/notifications/send/topic"
+          }
+        },
+        {
+          "name": "Schedule Push",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"gymId\": \"{{gymId}}\",\n  \"type\": \"workout\",\n  \"event\": \"trainer.workout_assigned\",\n  \"title\": \"Scheduled reminder\",\n  \"body\": \"Workout starts soon\",\n  \"data\": {\n    \"deepLink\": \"Workout\"\n  },\n  \"scheduledFor\": \"2026-12-31T10:00:00.000Z\",\n  \"dedupeKey\": \"schedule-postman-{{$timestamp}}\"\n}"
+            },
+            "url": "{{baseUrl}}/notifications/schedule"
+          }
+        },
+        {
+          "name": "Track Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"opened\"\n}"
+            },
+            "url": "{{baseUrl}}/notifications/{{notificationId}}/track"
+          }
+        },
+        {
+          "name": "Delete Notification",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/notifications/{{notificationId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Finance",
+      "item": [
+        {
+          "name": "Finance Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/finance/dashboard?month=8&year=2026",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "finance",
+                "dashboard"
+              ],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "8"
+                },
+                {
+                  "key": "year",
+                  "value": "2026"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Pending Members",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/finance/pending-members"
+          }
+        },
+        {
+          "name": "List Expenses",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/finance/expenses?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "finance",
+                "expenses"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "category",
+                  "value": "rent",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Expense",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  const d = j.data || j;",
+                  "  const id = d._id || (d.expense && d.expense._id);",
+                  "  if (id) pm.collectionVariables.set('expenseId', id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": \"utilities\",\n  \"title\": \"Electricity bill\",\n  \"amountPaise\": 450000,\n  \"note\": \"August bill\",\n  \"date\": \"2026-08-01T00:00:00.000Z\"\n}"
+            },
+            "url": "{{baseUrl}}/finance/expenses"
+          }
+        },
+        {
+          "name": "Update Expense",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Electricity bill (revised)\",\n  \"amountPaise\": 480000,\n  \"note\": \"Updated amount\"\n}"
+            },
+            "url": "{{baseUrl}}/finance/expenses/{{expenseId}}"
+          }
+        },
+        {
+          "name": "Delete Expense",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/finance/expenses/{{expenseId}}"
+          }
+        },
+        {
+          "name": "List Finance Invoices",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/finance/invoices?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "finance",
+                "invoices"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "unpaid",
+                  "disabled": true
+                },
+                {
+                  "key": "memberId",
+                  "value": "{{memberId}}",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Finance Invoice",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  const d = j.data || j;",
+                  "  const id = d._id || (d.invoice && d.invoice._id);",
+                  "  if (id) pm.collectionVariables.set('financeInvoiceId', id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"{{memberId}}\",\n  \"items\": [\n    {\n      \"description\": \"Monthly membership\",\n      \"quantity\": 1,\n      \"unitPricePaise\": 299900\n    },\n    {\n      \"description\": \"Personal training (2 sessions)\",\n      \"quantity\": 2,\n      \"unitPricePaise\": 50000\n    }\n  ],\n  \"taxPaise\": 0,\n  \"note\": \"August invoice\",\n  \"dueDate\": \"2026-08-31T00:00:00.000Z\",\n  \"markPaid\": false\n}"
+            },
+            "url": "{{baseUrl}}/finance/invoices"
+          }
+        },
+        {
+          "name": "Get Finance Invoice",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/finance/invoices/{{financeInvoiceId}}"
+          }
+        },
+        {
+          "name": "Mark Invoice Paid",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"Cash received\"\n}"
+            },
+            "url": "{{baseUrl}}/finance/invoices/{{financeInvoiceId}}/mark-paid"
+          }
+        },
+        {
+          "name": "Mark Invoice Unpaid",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"Payment reversed\"\n}"
+            },
+            "url": "{{baseUrl}}/finance/invoices/{{financeInvoiceId}}/mark-unpaid"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Enquiries",
+      "item": [
+        {
+          "name": "List Enquiries",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enquiries?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enquiries"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "new",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Enquiry",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  const d = j.data || j;",
+                  "  const id = d._id || (d.enquiry && d.enquiry._id);",
+                  "  if (id) pm.collectionVariables.set('enquiryId', id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Rahul Sharma\",\n  \"phone\": \"+919811122233\",\n  \"email\": \"rahul.lead@example.com\",\n  \"note\": \"Interested in evening batch\",\n  \"source\": \"walk_in\",\n  \"interestedPlan\": \"Gold Monthly\",\n  \"status\": \"new\"\n}"
+            },
+            "url": "{{baseUrl}}/enquiries"
+          }
+        },
+        {
+          "name": "Get Enquiry",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/enquiries/{{enquiryId}}"
+          }
+        },
+        {
+          "name": "Update Enquiry",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"contacted\",\n  \"note\": \"Called \u2014 will visit this weekend\",\n  \"convertedMemberId\": \"{{memberId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/enquiries/{{enquiryId}}"
+          }
+        },
+        {
+          "name": "Delete Enquiry",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/enquiries/{{enquiryId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Attendance (extras)",
+      "item": [
+        {
+          "name": "Attendance Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/attendance/status"
+          }
+        },
+        {
+          "name": "Bulk Check In",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberIds\": [\"{{memberId}}\"],\n  \"source\": \"staff\"\n}"
+            },
+            "url": "{{baseUrl}}/attendance/bulk-check-in"
+          }
+        },
+        {
+          "name": "Check-In QR (owner)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/attendance/check-in-qr"
+          }
+        },
+        {
+          "name": "Check-In Sticker (owner)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/attendance/check-in-sticker"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Fitness (templates / schedule / series)",
+      "item": [
+        {
+          "name": "Member Schedule",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/fitness/member-schedule"
+          }
+        },
+        {
+          "name": "List Workout Templates",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/fitness/workout-templates"
+          }
+        },
+        {
+          "name": "Workout Template Starters",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/fitness/workout-templates/starters"
+          }
+        },
+        {
+          "name": "Create Workout Template",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  const d = j.data || j;",
+                  "  const id = d._id || (d.template && d.template._id);",
+                  "  if (id) pm.collectionVariables.set('workoutTemplateId', id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Beginner Full Body\",\n  \"description\": \"3-day starter plan\",\n  \"cadence\": \"weekly\",\n  \"starterId\": \"default_weekly\"\n}"
+            },
+            "url": "{{baseUrl}}/fitness/workout-templates"
+          }
+        },
+        {
+          "name": "Create Workout Template (custom days)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Custom Push Day\",\n  \"description\": \"Chest + shoulders\",\n  \"cadence\": \"weekly\",\n  \"days\": [\n    {\n      \"day\": \"Monday\",\n      \"focus\": \"Push\",\n      \"exercises\": [\n        {\n          \"name\": \"Bench Press\",\n          \"sets\": 4,\n          \"reps\": \"8-10\",\n          \"restSeconds\": 90\n        },\n        {\n          \"name\": \"Overhead Press\",\n          \"sets\": 3,\n          \"reps\": \"10\",\n          \"restSeconds\": 60\n        }\n      ]\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/fitness/workout-templates"
+          }
+        },
+        {
+          "name": "Get Workout Template",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/fitness/workout-templates/{{workoutTemplateId}}"
+          }
+        },
+        {
+          "name": "Update Workout Template",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Beginner Full Body (v2)\",\n  \"isActive\": true\n}"
+            },
+            "url": "{{baseUrl}}/fitness/workout-templates/{{workoutTemplateId}}"
+          }
+        },
+        {
+          "name": "Delete Workout Template",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/fitness/workout-templates/{{workoutTemplateId}}"
+          }
+        },
+        {
+          "name": "Bulk Assign Workouts",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberIds\": [\"{{memberId}}\"],\n  \"title\": \"Assigned from template\",\n  \"description\": \"Bulk assign test\",\n  \"templateId\": \"push_pull_legs\",\n  \"replaceActive\": true\n}"
+            },
+            "url": "{{baseUrl}}/fitness/workouts/bulk"
+          }
+        },
+        {
+          "name": "Progress Series",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/fitness/progress/series?range=week&memberId={{memberId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fitness",
+                "progress",
+                "series"
+              ],
+              "query": [
+                {
+                  "key": "range",
+                  "value": "week"
+                },
+                {
+                  "key": "memberId",
+                  "value": "{{memberId}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Users (extras)",
+      "item": [
+        {
+          "name": "Upload Member Avatar",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "avatar",
+                  "type": "file",
+                  "src": "",
+                  "description": "Select an image file before sending"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/users/{{userId}}/avatar"
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Memberships (extras)",
+      "item": [
+        {
+          "name": "My Plan",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/memberships/my-plan"
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Reports (extras)",
+      "item": [
+        {
+          "name": "Activity",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Gym-Id",
+                "value": "{{gymId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reports/activity?limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reports",
+                "activity"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "User Growth",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/user-growth?months=6",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reports",
+                "user-growth"
+              ],
+              "query": [
+                {
+                  "key": "months",
+                  "value": "6"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Super Admin (platform)",
+      "item": [
+        {
+          "name": "Platform Dashboard (reports)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/reports/dashboard"
+          }
+        },
+        {
+          "name": "User Growth",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/user-growth?months=6",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reports",
+                "user-growth"
+              ],
+              "query": [
+                {
+                  "key": "months",
+                  "value": "6"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Gym (SA)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Test Gym\",\n  \"phone\": \"+919876543210\",\n  \"address\": {\n    \"line1\": \"1 Main St\",\n    \"city\": \"Chennai\",\n    \"state\": \"TN\"\n  },\n  \"owner\": {\n    \"name\": \"Test Owner\",\n    \"email\": \"postman.owner@fitzenix.com\",\n    \"phone\": \"+919876543211\",\n    \"password\": \"Secret123!\"\n  }\n}"
+            },
+            "url": "{{baseUrl}}/gyms"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const j = pm.response.json();",
+                  "const id = j?.data?._id || j?.data?.id;",
+                  "if (id) pm.collectionVariables.set('gymId', id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Gym",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/gyms/{{gymId}}"
+          }
+        },
+        {
+          "name": "Update Gym Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"suspended\"\n}"
+            },
+            "url": "{{baseUrl}}/gyms/{{gymId}}/status"
+          }
+        },
+        {
+          "name": "Platform Finance Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/finance/platform/summary"
+          }
+        },
+        {
+          "name": "Platform Finance Transactions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/finance/platform/transactions?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "finance",
+                "platform",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Platform Subscriptions Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/memberships/platform/summary"
+          }
+        },
+        {
+          "name": "Platform Subscriptions List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/memberships/platform/subscriptions?page=1&limit=20&status=active",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "memberships",
+                "platform",
+                "subscriptions"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "active"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
