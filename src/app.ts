@@ -18,7 +18,15 @@ export function createApp(): Application {
 
   app.set('trust proxy', 1);
   app.use(helmet());
-  app.use(cors({ origin: env.corsOrigins.length ? env.corsOrigins : true, credentials: true }));
+  const corsOptions = {
+    origin: env.corsOrigins,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    optionsSuccessStatus: 204,
+  };
+  app.use(cors(corsOptions));
+  app.options('*', cors(corsOptions));
   app.use(
     compression({
       filter: (req, res) => {

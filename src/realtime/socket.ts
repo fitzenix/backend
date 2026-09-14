@@ -21,7 +21,7 @@ const ctxOf = (user: UserDocument): Ctx => ({ user, tenantId: user.gym ? String(
  */
 export function initSocket(httpServer: HttpServer): Server {
   const io = new Server(httpServer, {
-    cors: { origin: env.corsOrigins.length ? env.corsOrigins : '*', credentials: true },
+    cors: { origin: env.corsOrigins, credentials: true },
   });
   setIo(io);
 

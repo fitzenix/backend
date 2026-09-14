@@ -27,7 +27,10 @@ export const env = {
   isTest: process.env.NODE_ENV === 'test',
   port: toNumber(process.env.PORT, 4000),
   apiPrefix: process.env.API_PREFIX ?? '/api/v1',
-  corsOrigins: toList(process.env.CORS_ORIGINS),
+  corsOrigins: toList(
+    process.env.CORS_ORIGINS ||
+      'https://www.fitzenix.app,http://localhost:3000,http://localhost:5173',
+  ),
 
   mongoUri: process.env.MONGO_URI ?? 'mongodb://127.0.0.1:27017/fitzenix',
 
