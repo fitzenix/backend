@@ -145,6 +145,8 @@ export const env = {
     name: envStr(process.env.APP_NAME, 'Fitzenix'),
     webUrl: envStr(process.env.APP_WEB_URL, 'https://www.fitzenix.app'),
     supportEmail: envStr(process.env.SUPPORT_EMAIL, 'support@fitzenix.com'),
+    /** Internal inbox for signup / verify / checkout lead alerts (ZeptoMail). */
+    leadsEmail: envStr(process.env.LEADS_EMAIL, 'fitzenixofficial@gmail.com'),
   },
 } as const;
 

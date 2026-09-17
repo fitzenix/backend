@@ -18,6 +18,7 @@ import {
   otpEmail,
   welcomeEmail,
 } from '../../services/mail/templates';
+import { notifyLead } from '../../services/mail/leadNotify.service';
 import { transferService } from '../users/transfer.service';
 import type { AuthTokenPayload } from '../../types/index';
 import type {
@@ -138,6 +139,12 @@ export const authService = {
           minutes: Math.round(env.otpTtlSeconds / 60),
         }),
       ),
+      notifyLead({
+        kind: 'signup',
+        user: created.user,
+        gymName: created.gym.name,
+        source: 'web_signup',
+      }),
     ]);
 
     return {
@@ -296,6 +303,11 @@ export const authService = {
       if (user.status === USER_STATUS.PENDING) user.status = USER_STATUS.ACTIVE;
       user.lastLoginAt = new Date();
       await user.save();
+      void notifyLead({
+        kind: 'email_verified',
+        user,
+        source: 'web_email_verify',
+      });
       const tokens = await issueTokens(user, ctx);
       return { verified: true as const, emailVerified: true as const, user, ...tokens };
     }
