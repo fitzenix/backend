@@ -1,3 +1,4 @@
+import { env } from '../../config/env';
 /** FITZENIX transactional email design tokens (2026 premium dark glass). */
 const RED = '#FF1B27';
 const BG = '#05070B';
@@ -431,5 +432,46 @@ export function leadAlertEmail(input: {
   ]
     .filter(Boolean)
     .join('\n');
+  return { subject, html, text };
+}
+
+export function demoRequestAcknowledgementEmail(input: {
+  name: string;
+  gymName: string;
+}): MailTemplate {
+  const subject = 'Your FITZENIX demo request is confirmed';
+  const html = layout({
+    preheader: 'We received your request and will be in touch soon.',
+    titleHtml: 'Demo request received',
+    introHtml: `Hi ${escapeHtml(input.name)}, thanks for requesting a FITZENIX demo for ${escapeHtml(input.gymName)}. Our team will contact you shortly.`,
+    bodyHtml: `<p style="margin:0;text-align:center;font-family:${FONT};font-size:15px;line-height:1.6;color:${TEXT_SEC};">Why wait? Start a 14-day free trial today with instant access and no credit card required.</p><p style="margin:22px 0 0;text-align:center;"><a href="${escapeHtml(`${env.app.webUrl.replace(/\/$/, '')}/login`)}" style="display:inline-block;padding:13px 22px;border-radius:10px;background:${RED};color:${WHITE};font-family:${FONT};font-size:14px;font-weight:700;text-decoration:none;">Start a free trial now</a></p>`,
+  });
+  const text = `Hi ${input.name},\n\nWe received your FITZENIX demo request for ${input.gymName}. Our team will contact you shortly.\n\nWhy wait? Start a 14-day free trial today with instant access and no credit card required: ${env.app.webUrl.replace(/\/$/, '')}/login`;
+  return { subject, html, text };
+}
+
+export function demoRequestLeadEmail(input: {
+  name: string;
+  phone: string;
+  email: string;
+  city: string;
+  gymName: string;
+}): MailTemplate {
+  const subject = `[FITZENIX Lead] Demo request · ${input.gymName}`;
+  const rows = [
+    { label: 'Name', value: input.name },
+    { label: 'Phone', value: input.phone },
+    { label: 'Email', value: input.email },
+    { label: 'City', value: input.city },
+    { label: 'Gym', value: input.gymName },
+    { label: 'Received', value: new Date().toISOString() },
+  ];
+  const html = layout({
+    preheader: subject,
+    titleHtml: `<span style="color:${RED};">New</span> demo request`,
+    introHtml: 'A website visitor has requested a FITZENIX demo.',
+    bodyHtml: `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:8px 0 0;border:1px solid ${BORDER};border-radius:12px;overflow:hidden;background:${GLASS_DARK};">${leadRows(rows)}</table>`,
+  });
+  const text = rows.map(({ label, value }) => `${label}: ${value}`).join('\n');
   return { subject, html, text };
 }

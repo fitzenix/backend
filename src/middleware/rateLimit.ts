@@ -37,3 +37,13 @@ export const sendLimiter: RateLimitRequestHandler = rateLimit({
   skip: () => env.isTest,
   handler: rejectWith('Too many notification sends, please slow down.'),
 });
+
+/** Keep the public demo form usable while limiting automated lead spam. */
+export const demoRequestLimiter: RateLimitRequestHandler = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: env.isProd ? 5 : 50,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => env.isTest,
+  handler: rejectWith('Too many demo requests. Please try again later.'),
+});
