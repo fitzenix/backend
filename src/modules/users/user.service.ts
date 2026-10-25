@@ -6,7 +6,7 @@ import { ApiError } from '../../utils/ApiError';
 import { GYM_FEATURES, ROLES, USER_STATUS } from '../../config/constants';
 import { parseListQuery, buildSearchFilter } from '../../utils/pagination';
 import { storageService } from '../../services/storage.service';
-import type { Ctx, Paginated } from '../../types/index';
+import type { Ctx } from '../../types/index';
 import type { ListUsersQuery, CreateUserInput, UpdateUserInput, UpdateProfileInput } from './user.validators';
 import { GymTenure } from './gymTenure.model';
 import {
@@ -30,7 +30,7 @@ function endOfDay(d: Date): Date {
 }
 
 export const userService = {
-  async list(ctx: Ctx): Promise<Paginated<UserDocument>> {
+  async list(ctx: Ctx) {
     const q = (ctx.validatedQuery ?? {}) as ListUsersQuery;
     const { page, limit, skip, sort, search } = parseListQuery(q);
     const filter: FilterQuery<IUser> = {
@@ -46,7 +46,7 @@ export const userService = {
     }
 
     const [items, total] = await Promise.all([
-      User.find(filter).sort(sort).skip(skip).limit(limit),
+      User.find(filter).sort(sort).skip(skip).limit(limit).select('-__v').lean(),
       User.countDocuments(filter),
     ]);
     return { items, page, limit, total };
@@ -73,19 +73,15 @@ export const userService = {
       if (gym) {
         await billingService.ensureFresh(gym);
         const access = computeGymAccess(gym);
-        if (data.role === ROLES.MEMBER && access.memberLimit != null) {
-          const count = await User.countDocuments({ gym: gymId, role: ROLES.MEMBER, deletedAt: null });
-          if (count >= access.memberLimit) {
-            throw ApiError.forbidden(
-              `Member limit reached for this plan (${access.memberLimit}). Upgrade to add more members.`,
-            );
-          }
+        if (data.role === ROLES.MEMBER) {
+          const { assertCanAddMembers } = await import('../billing/planQuota');
+          await assertCanAddMembers(gymId, 1, access);
         }
         if (data.role === ROLES.STAFF && !hasGymFeature(access, GYM_FEATURES.MULTI_STAFF)) {
           throw ApiError.forbidden('Multi-staff is included in the Pro plan. Please upgrade to add staff.');
         }
         if (data.role === ROLES.TRAINER && !hasGymFeature(access, GYM_FEATURES.APPS)) {
-          throw ApiError.forbidden('Trainer accounts are included in Growth and Pro. Please upgrade.');
+          throw ApiError.forbidden('Trainer accounts are included in your Fitzenix plan. Please upgrade.');
         }
       }
     }

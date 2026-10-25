@@ -1,7 +1,8 @@
 import type { Server as HttpServer } from 'node:http';
 import { Server, type Socket } from 'socket.io';
 import { verifyAccessToken } from '../utils/tokens';
-import { User, type UserDocument } from '../modules/users/user.model';
+import { type UserDocument } from '../modules/users/user.model';
+import { loadAuthUser } from '../middleware/auth';
 import { chatService } from '../modules/chat/chat.service';
 import { Conversation } from '../modules/chat/conversation.model';
 import { setIo, emitToConversation } from './emitter';
@@ -31,7 +32,7 @@ export function initSocket(httpServer: HttpServer): Server {
       const token = (socket.handshake.auth?.token as string | undefined) || header.replace('Bearer ', '');
       if (!token) return next(new Error('unauthorized'));
       const payload = verifyAccessToken(token);
-      const user = await User.findById(payload.sub);
+      const user = await loadAuthUser(payload.sub);
       if (!user || user.deletedAt) return next(new Error('unauthorized'));
       (socket as AuthedSocket).user = user;
       next();

@@ -48,6 +48,9 @@ export class RazorpayGateway implements PaymentGateway {
   }
 
   async createOrder({ amountPaise, currency = CURRENCY, receipt, notes, method }: CreateOrderInput): Promise<GatewayOrder> {
+    if (!Number.isInteger(amountPaise) || amountPaise < 100) {
+      throw ApiError.badRequest('Amount must be at least 100 paise');
+    }
     const client = await this.getClient();
     const stringNotes = Object.fromEntries(
       Object.entries(notes ?? {}).map(([k, v]) => [k, v == null ? '' : String(v)]),

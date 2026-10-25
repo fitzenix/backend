@@ -1,4 +1,5 @@
 import { Schema, model, Types, type Model, type HydratedDocument } from 'mongoose';
+import { invalidateReads } from '../../utils/hotCache';
 import { SUBSCRIPTION_STATUS, type SubscriptionStatus } from '../../config/constants';
 
 export interface ISubscription {
@@ -47,6 +48,8 @@ const subscriptionSchema = new Schema<ISubscription, SubscriptionModel>(
 
 // Compound index accelerates the "current active subscription for a member" query.
 subscriptionSchema.index({ gym: 1, member: 1, status: 1, endDate: -1 });
+subscriptionSchema.index({ gym: 1, status: 1, endDate: 1 });
+invalidateReads(subscriptionSchema, { gymFrom: 'gym' });
 
 subscriptionSchema.virtual('isCurrentlyActive').get(function isActive(this: ISubscription) {
   return this.status === SUBSCRIPTION_STATUS.ACTIVE && this.endDate >= new Date();

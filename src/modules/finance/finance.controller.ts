@@ -1,12 +1,18 @@
 import { asyncHandler } from '../../utils/asyncHandler';
 import { sendSuccess, sendCreated, paginationMeta } from '../../utils/apiResponse';
 import { financeService } from './finance.service';
+import { cachedRead } from '../../utils/hotCache';
 import type { AuthedRequest } from '../../types/index';
 import type { DashboardQuery } from './finance.validators';
 
 export const financeController = {
   dashboard: asyncHandler<AuthedRequest>(async (req, res) => {
-    const data = await financeService.dashboard(req, (req.validatedQuery ?? {}) as DashboardQuery);
+    const q = (req.validatedQuery ?? {}) as DashboardQuery;
+    const data = await cachedRead(
+      `g:${req.tenantId}:finance:${q.year ?? ''}:${q.month ?? ''}`,
+      15_000,
+      () => financeService.dashboard(req, q),
+    );
     sendSuccess(res, { data });
   }),
 

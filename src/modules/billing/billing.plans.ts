@@ -19,24 +19,23 @@ export interface PlatformPlan {
   featureLabels: string[];
 }
 
+/** Paid plans share the operational suite; member limits differentiate them. */
 const STARTER_FEATURES: GymFeature[] = [
   GYM_FEATURES.MEMBERS,
   GYM_FEATURES.CHECKIN,
   GYM_FEATURES.ATTENDANCE,
   GYM_FEATURES.PAYMENTS,
-];
-
-const GROWTH_FEATURES: GymFeature[] = [
-  ...STARTER_FEATURES,
   GYM_FEATURES.APPS,
   GYM_FEATURES.REPORTS,
   GYM_FEATURES.CRM,
+  GYM_FEATURES.ANALYTICS,
 ];
+
+const GROWTH_FEATURES: GymFeature[] = [...STARTER_FEATURES];
 
 const PRO_FEATURES: GymFeature[] = [
   ...GROWTH_FEATURES,
   GYM_FEATURES.MULTI_STAFF,
-  GYM_FEATURES.ANALYTICS,
   GYM_FEATURES.PRIORITY_SUPPORT,
 ];
 
@@ -51,7 +50,17 @@ export const PLATFORM_PLANS: Record<GymPlanId, PlatformPlan> = {
     memberLimit: 100,
     popular: false,
     features: STARTER_FEATURES,
-    featureLabels: ['Up to 100 Members', 'QR Check-In', 'Attendance', 'Payments'],
+    featureLabels: [
+      'Up to 100 Members',
+      'Member Management',
+      'Attendance & QR Check-in',
+      'Trainer Management',
+      'Payments & Invoices',
+      'Reports & Analytics',
+      'Mobile Apps',
+      'Notifications & CRM',
+      'Bulk Import',
+    ],
   },
   [GYM_PLANS.GROWTH]: {
     id: GYM_PLANS.GROWTH,
@@ -64,11 +73,14 @@ export const PLATFORM_PLANS: Record<GymPlanId, PlatformPlan> = {
     features: GROWTH_FEATURES,
     featureLabels: [
       'Up to 500 Members',
-      'Owner App',
-      'Trainer App',
-      'Member App',
-      'Reports',
-      'CRM',
+      'Member Management',
+      'Attendance & QR Check-in',
+      'Trainer Management',
+      'Payments & Invoices',
+      'Reports & Analytics',
+      'Mobile Apps',
+      'Notifications & CRM',
+      'Bulk Import',
     ],
   },
   [GYM_PLANS.PRO]: {

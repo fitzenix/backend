@@ -1,4 +1,5 @@
 import { Schema, model, Types, type Model, type HydratedDocument } from 'mongoose';
+import { invalidateReads } from '../../utils/hotCache';
 import { GYM_STATUS, GYM_PLAN_VALUES, type GymStatus, type GymPlanId } from '../../config/constants';
 import type { StorageObject } from '../../types/index';
 
@@ -106,6 +107,9 @@ const gymSchema = new Schema<IGym, GymModel>(
   },
   { timestamps: true, toJSON: { versionKey: false } },
 );
+
+gymSchema.index({ deletedAt: 1, status: 1, createdAt: -1 });
+invalidateReads(gymSchema, { gymFrom: 'id' });
 
 export const Gym = model<IGym, GymModel>('Gym', gymSchema);
 export default Gym;

@@ -49,6 +49,12 @@ export class TTLCache<K, V> {
     this.store.delete(key);
   }
 
+  deleteWhere(predicate: (key: K) => boolean): void {
+    for (const key of Array.from(this.store.keys())) {
+      if (predicate(key)) this.store.delete(key);
+    }
+  }
+
   clear(): void {
     this.store.clear();
   }

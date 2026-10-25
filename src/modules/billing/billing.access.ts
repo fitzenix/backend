@@ -47,7 +47,7 @@ export function computeGymAccess(gym: GymDocument): GymAccessState {
       reason: 'trial',
       plan: null,
       features: [...TRIAL_FEATURES],
-      memberLimit: null,
+      memberLimit: PLATFORM_PLANS.starter.memberLimit,
       trialEndsAt: iso(trialEnds),
       planPeriodEnd: iso(periodEnd),
       daysRemaining: daysLeft(trialEnds),

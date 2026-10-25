@@ -45,7 +45,10 @@ export async function connectDB(uri: string = env.mongoUri): Promise<Connection>
     try {
       await mongoose.connect(uri, {
         serverSelectionTimeoutMS: 10_000,
-        autoIndex: !env.isProd,
+        maxPoolSize: 25,
+        minPoolSize: env.isTest ? 0 : 2,
+        // Indexes are created once, then reused. Prod previously skipped this, so hot queries scanned the collection.
+        autoIndex: true,
       });
       logger.info('MongoDB connected');
       return mongoose.connection;

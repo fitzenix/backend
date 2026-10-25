@@ -3,7 +3,7 @@ import { Enquiry, type IEnquiry, type EnquiryDocument } from './enquiry.model';
 import { ApiError } from '../../utils/ApiError';
 import { ENQUIRY_STATUS } from '../../config/constants';
 import { parseListQuery, buildSearchFilter } from '../../utils/pagination';
-import type { Ctx, Paginated } from '../../types/index';
+import type { Ctx } from '../../types/index';
 import type { EnquiryListQuery, CreateEnquiryInput, UpdateEnquiryInput } from './enquiry.validators';
 
 function requireTenant(ctx: Ctx): string {
@@ -12,7 +12,7 @@ function requireTenant(ctx: Ctx): string {
 }
 
 export const enquiryService = {
-  async list(ctx: Ctx): Promise<Paginated<EnquiryDocument>> {
+  async list(ctx: Ctx) {
     const gym = requireTenant(ctx);
     const q = (ctx.validatedQuery ?? {}) as EnquiryListQuery;
     const { page, limit, skip, sort, search } = parseListQuery(q, { defaultSort: 'createdAt' });
@@ -23,7 +23,7 @@ export const enquiryService = {
     if (q.status) filter.status = q.status;
 
     const [items, total] = await Promise.all([
-      Enquiry.find(filter).sort(sort).skip(skip).limit(limit),
+      Enquiry.find(filter).sort(sort).skip(skip).limit(limit).select('-__v').lean(),
       Enquiry.countDocuments(filter),
     ]);
     return { items, page, limit, total };

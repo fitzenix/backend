@@ -25,6 +25,13 @@ export interface ImportResult {
   assignments: { created: number; skipped: number };
   defaultPassword: string;
   errors: ParseIssue[];
+  quota?: {
+    planName: string;
+    limit: number | null;
+    used: number;
+    remaining: number | null;
+    skippedForLimit: number;
+  };
 }
 
 function emptyBucket(): ImportBucket {
@@ -124,6 +131,17 @@ export const importService = {
       throw ApiError.badRequest('Upload a .xlsx or .csv file in the "file" field.');
     }
 
+    const { Gym } = await import('../gyms/gym.model');
+    const { billingService } = await import('../billing/billing.service');
+    const { computeGymAccess } = await import('../billing/billing.access');
+    const { getMemberQuota, nextPlanHint } = await import('../billing/planQuota');
+    const gymDoc = await Gym.findById(gym);
+    if (gymDoc) await billingService.ensureFresh(gymDoc);
+    const access = gymDoc ? computeGymAccess(gymDoc) : undefined;
+    const quota = await getMemberQuota(gym, access);
+    let remainingSlots = quota.remaining;
+    let skippedForLimit = 0;
+
     const parsed = parseImportFile(file.buffer, file.originalname || 'import.xlsx');
     if (!parsed.plans.length && !parsed.trainers.length && !parsed.members.length) {
       throw ApiError.badRequest('No plans, trainers or members found in this file.');
@@ -137,6 +155,13 @@ export const importService = {
       assignments: { created: 0, skipped: 0 },
       defaultPassword: IMPORT_DEFAULT_PASSWORD,
       errors: [...parsed.errors],
+      quota: {
+        planName: quota.planName,
+        limit: quota.limit,
+        used: quota.used,
+        remaining: quota.remaining,
+        skippedForLimit: 0,
+      },
     };
 
     const planByName = new Map<string, { _id: unknown; name: string; durationDays: number; pricePaise: number; features?: string[] }>();
@@ -257,6 +282,19 @@ export const importService = {
         continue;
       }
 
+      if (remainingSlots !== null && remainingSlots <= 0) {
+        skippedForLimit += 1;
+        result.members.skipped += 1;
+        if (skippedForLimit === 1) {
+          result.errors.push({
+            sheet: 'Members',
+            row: row.row,
+            message: `${quota.planName} allows ${quota.limit} members. You already have ${quota.used + result.members.created}.${nextPlanHint(quota.limit)} Extra rows were skipped.`,
+          });
+        }
+        continue;
+      }
+
       try {
         const user = new User({
           name: row.name.trim(),
@@ -271,6 +309,7 @@ export const importService = {
         await user.setPassword(secret.password);
         await user.save();
         result.members.created += 1;
+        if (remainingSlots !== null) remainingSlots -= 1;
 
         if (row.planName) {
           const plan = planByName.get(row.planName.trim().toLowerCase());
@@ -338,6 +377,12 @@ export const importService = {
           message: err instanceof Error ? err.message : 'Could not create member',
         });
       }
+    }
+
+    if (result.quota) {
+      result.quota.skippedForLimit = skippedForLimit;
+      result.quota.used = quota.used + result.members.created;
+      result.quota.remaining = remainingSlots;
     }
 
     return result;

@@ -18,7 +18,7 @@ import {
   encodeCheckInQr,
   renderCheckInSticker,
 } from '../../utils/checkInSticker';
-import type { Ctx, Paginated } from '../../types/index';
+import type { Ctx } from '../../types/index';
 
 interface CheckInput {
   memberId?: string;
@@ -233,7 +233,7 @@ export const attendanceService = {
     return open;
   },
 
-  async list(ctx: Ctx): Promise<Paginated<AttendanceDocument>> {
+  async list(ctx: Ctx) {
     const gym = requireTenant(ctx);
     const q = (ctx.validatedQuery ?? {}) as ListAttendanceQuery;
     const { page, limit, skip, sort } = parseListQuery(q, { defaultSort: 'checkInAt' });
@@ -252,7 +252,9 @@ export const attendanceService = {
         .sort(sort)
         .skip(skip)
         .limit(limit)
-        .populate('member', 'name email phone avatar status'),
+        .select('-__v')
+        .populate('member', 'name email phone avatar status')
+        .lean(),
       Attendance.countDocuments(filter),
     ]);
     return { items, page, limit, total };

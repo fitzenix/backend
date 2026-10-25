@@ -51,6 +51,39 @@ function formatClock(d: Date): string {
   return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 }
 
+async function countPendingMembers(gymOid: Types.ObjectId): Promise<number> {
+  const now = new Date();
+  const [row] = await Invoice.aggregate<{ n: number }>([
+    {
+      $match: {
+        gym: gymOid,
+        status: INVOICE_STATUS.UNPAID,
+        number: { $not: /^FX-/ },
+      },
+    },
+    { $project: { member: 1 } },
+    {
+      $unionWith: {
+        coll: Subscription.collection.collectionName,
+        pipeline: [
+          {
+            $match: {
+              gym: gymOid,
+              status: SUBSCRIPTION_STATUS.ACTIVE,
+              endDate: { $gte: now },
+              $or: [{ payment: null }, { payment: { $exists: false } }],
+            },
+          },
+          { $project: { member: 1 } },
+        ],
+      },
+    },
+    { $group: { _id: '$member' } },
+    { $count: 'n' },
+  ]);
+  return row?.n ?? 0;
+}
+
 async function sumPaid(
   match: Record<string, unknown>,
   includePlatform = false,
@@ -226,8 +259,7 @@ export const reportsService = {
       newMembersThisMonth,
       newMembersPrevMonth,
       openEnquiries,
-      unpaidInvoices,
-      unpaidActiveSubs,
+      pendingPayments,
     ] = await Promise.all([
       User.countDocuments({ ...gymMatch, role: ROLES.MEMBER, deletedAt: null }),
       User.countDocuments({ ...gymMatch, role: ROLES.TRAINER, deletedAt: null }),
@@ -272,22 +304,7 @@ export const reportsService = {
         ...gymMatch,
         status: { $in: [ENQUIRY_STATUS.NEW, ENQUIRY_STATUS.CONTACTED] },
       }),
-      Invoice.find({ ...gymMatch, status: INVOICE_STATUS.UNPAID, number: { $not: /^FX-/ } })
-        .select('member')
-        .lean(),
-      Subscription.find({
-        ...gymMatch,
-        status: SUBSCRIPTION_STATUS.ACTIVE,
-        endDate: { $gte: new Date() },
-        $or: [{ payment: null }, { payment: { $exists: false } }],
-      })
-        .select('member')
-        .lean(),
-    ]);
-
-    const pendingMemberIds = new Set<string>([
-      ...unpaidInvoices.map((i) => String(i.member)),
-      ...unpaidActiveSubs.map((s) => String(s.member)),
+      countPendingMembers(gymOid),
     ]);
 
     const membersDeltaPct =
@@ -313,7 +330,7 @@ export const reportsService = {
       newMembersToday,
       newMembersThisMonth,
       openEnquiries,
-      pendingPayments: pendingMemberIds.size,
+      pendingPayments,
       deltas: {
         membersThisMonthPct: membersDeltaPct,
         revenueThisMonthPct: revenueDeltaPct,
@@ -474,16 +491,16 @@ export const reportsService = {
       'memberProfile.assignedTrainer': trainerId,
     };
 
-    const [assignedMembers, workouts, diets, assignedIds, plans] = await Promise.all([
-      User.countDocuments(assignedFilter),
+    const [assignedIds, workouts, diets, plans] = await Promise.all([
+      User.find(assignedFilter).select('_id').lean(),
       WorkoutPlan.countDocuments({ gym, trainer: trainerId, deletedAt: null }),
       DietPlan.countDocuments({ gym, trainer: trainerId, deletedAt: null }),
-      User.find(assignedFilter).select('_id').lean(),
       WorkoutPlan.find({ gym, trainer: trainerId, deletedAt: null, isActive: true })
         .select('title days member')
         .lean(),
     ]);
 
+    const assignedMembers = assignedIds.length;
     const memberIds = assignedIds.map((m) => m._id);
     const attendanceToday = memberIds.length
       ? await Attendance.find({
@@ -611,16 +628,13 @@ export const reportsService = {
     weekStart.setDate(weekStart.getDate() + mondayOffset);
     const weekEnd = new Date(weekStart.getTime() + 7 * DAY_MS);
 
+    const monthStart = startOfMonth();
     const [
       current,
       attendanceCount,
-      thisMonthAttendance,
       workouts,
       diets,
-      todaySessions,
-      weekSessions,
       recentSessions,
-      memberUser,
     ] = await Promise.all([
       Subscription.findOne({
         gym,
@@ -631,28 +645,26 @@ export const reportsService = {
         .sort({ endDate: -1 })
         .populate('plan', 'name durationDays pricePaise'),
       Attendance.countDocuments({ gym, member: memberId }),
-      Attendance.countDocuments({ gym, member: memberId, checkInAt: { $gte: startOfMonth() } }),
       WorkoutPlan.countDocuments({ gym, member: memberId, deletedAt: null, isActive: true }),
       DietPlan.countDocuments({ gym, member: memberId, deletedAt: null, isActive: true }),
-      Attendance.find({ gym, member: memberId, checkInAt: { $gte: todayStart } }).lean(),
-      Attendance.find({
-        gym,
-        member: memberId,
-        checkInAt: { $gte: weekStart, $lt: weekEnd },
-      })
-        .select('checkInAt')
-        .lean(),
-      // Last ~60 days for streak calculation
+      // One window covers streak, this week, this month, and today's sessions.
       Attendance.find({
         gym,
         member: memberId,
         checkInAt: { $gte: new Date(now.getTime() - 60 * DAY_MS) },
       })
-        .select('checkInAt')
+        .select('checkInAt checkOutAt durationMinutes')
         .sort({ checkInAt: -1 })
         .lean(),
-      User.findById(memberId).select('memberProfile name phone').lean(),
     ]);
+
+    const memberUser = ctx.user;
+    const todaySessions = recentSessions.filter((s) => new Date(s.checkInAt) >= todayStart);
+    const thisMonthAttendance = recentSessions.filter((s) => new Date(s.checkInAt) >= monthStart).length;
+    const weekSessions = recentSessions.filter((s) => {
+      const at = new Date(s.checkInAt);
+      return at >= weekStart && at < weekEnd;
+    });
 
     // Unique attendance days (yyyy-mm-dd local).
     const attendedDays = new Set(

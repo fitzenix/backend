@@ -99,6 +99,9 @@ export const transferService = {
     }
     if (!member.gym) throw ApiError.badRequest('Member is not linked to a gym');
 
+    const { assertCanAddMembers } = await import('../billing/planQuota');
+    await assertCanAddMembers(toGymId);
+
     await GymTransfer.updateMany(
       { member: member._id, toGym: toGymId, status: TRANSFER_STATUS.PENDING },
       { $set: { status: TRANSFER_STATUS.CANCELLED } },
@@ -236,6 +239,9 @@ export const transferService = {
 
     const fromGymId = transfer.fromGym;
     const toGymId = transfer.toGym;
+
+    const { assertCanAddMembers } = await import('../billing/planQuota');
+    await assertCanAddMembers(String(toGymId));
 
     await Subscription.updateMany(
       { member: member._id, gym: fromGymId, status: SUBSCRIPTION_STATUS.ACTIVE },

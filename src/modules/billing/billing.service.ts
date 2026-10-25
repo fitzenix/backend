@@ -27,6 +27,7 @@ import {
   mapRazorpayError,
   waitForRazorpayPayment,
 } from '../../services/payments/razorpayUpi';
+import { notifyLead } from '../../services/mail/leadNotify.service';
 
 function addDays(date: Date, days: number): Date {
   const d = new Date(date);
@@ -60,10 +61,28 @@ export const billingService = {
     };
   },
 
-  async status(ctx: Ctx): Promise<{ gymId: string; gymName: string; access: GymAccessState }> {
+  async status(ctx: Ctx): Promise<{
+    gymId: string;
+    gymName: string;
+    access: GymAccessState;
+    usage: { memberCount: number; memberLimit: number | null; remainingMembers: number | null };
+  }> {
     const gym = await this.ensureFresh(await loadGym(ctx));
     await this.syncSaasExpenses(gym);
-    return { gymId: String(gym._id), gymName: gym.name, access: computeGymAccess(gym) };
+    const access = computeGymAccess(gym);
+    const { quotaFrom, countGymMembers } = await import('./planQuota');
+    const used = await countGymMembers(String(gym._id));
+    const quota = quotaFrom(access, used);
+    return {
+      gymId: String(gym._id),
+      gymName: gym.name,
+      access,
+      usage: {
+        memberCount: quota.used,
+        memberLimit: quota.limit,
+        remainingMembers: quota.remaining,
+      },
+    };
   },
 
   /**
@@ -105,6 +124,9 @@ export const billingService = {
   },
 
   async checkout(ctx: Ctx, { plan }: BillingCheckoutInput) {
+    if (!ctx.user.emailVerified) {
+      throw ApiError.forbidden('Verify your email before purchasing a plan');
+    }
     if (ctx.user.role !== ROLES.GYM_OWNER && ctx.user.role !== ROLES.SUPER_ADMIN) {
       throw ApiError.forbidden('Only the gym owner can purchase a Fitzenix plan');
     }
@@ -139,6 +161,15 @@ export const billingService = {
     const mockSignature =
       mock && mockPaymentId ? MockGateway.sign(`${order.id}|${mockPaymentId}`) : undefined;
 
+    void notifyLead({
+      kind: 'checkout_started',
+      user: ctx.user,
+      gymName: gym.name,
+      plan: catalog.name,
+      amountPaise: catalog.pricePaise,
+      source: 'web_checkout',
+    });
+
     return {
       paymentId: String(payment._id),
       plan: catalog,
@@ -160,6 +191,9 @@ export const billingService = {
 
   /** UPI Collect via Razorpay API (used when owner pays with UPI). */
   async upiCollect(ctx: Ctx, { plan, vpa }: BillingUpiCollectInput) {
+    if (!ctx.user.emailVerified) {
+      throw ApiError.forbidden('Verify your email before purchasing a plan');
+    }
     if (ctx.user.role !== ROLES.GYM_OWNER && ctx.user.role !== ROLES.SUPER_ADMIN) {
       throw ApiError.forbidden('Only the gym owner can purchase a Fitzenix plan');
     }
@@ -293,6 +327,14 @@ export const billingService = {
 
     const owner = await User.findById(gym.owner);
     if (owner) {
+      void notifyLead({
+        kind: 'plan_activated',
+        user: owner,
+        gymName: gym.name,
+        plan: catalog.name,
+        amountPaise: payment.amountPaise,
+        source: 'web_payment',
+      });
       await notificationService.notify({
         gym: gym._id,
         user: owner._id,

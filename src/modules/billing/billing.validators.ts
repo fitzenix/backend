@@ -1,8 +1,25 @@
 import { z } from 'zod';
 
-export const billingCheckoutSchema = z.object({
-  plan: z.enum(['starter', 'growth', 'pro']),
-});
+const paidPlan = z.enum(['starter', 'growth', 'pro']);
+
+/** Accept `{ plan }` (canonical) or `{ planId }` from older clients. */
+export const billingCheckoutSchema = z
+  .object({
+    plan: paidPlan.optional(),
+    planId: paidPlan.optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.plan && !value.planId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['plan'],
+        message: 'plan is required (starter | growth | pro)',
+      });
+    }
+  })
+  .transform(({ plan, planId }) => ({
+    plan: (plan ?? planId) as 'starter' | 'growth' | 'pro',
+  }));
 
 export const billingVerifySchema = z.object({
   orderId: z.string().min(4),
@@ -11,7 +28,7 @@ export const billingVerifySchema = z.object({
 });
 
 export const billingUpiCollectSchema = z.object({
-  plan: z.enum(['starter', 'growth', 'pro']),
+  plan: paidPlan,
   vpa: z
     .string()
     .trim()

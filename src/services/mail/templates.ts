@@ -367,3 +367,69 @@ export function gymTransferCompleteEmail(input: { name: string; fromGym: string;
   });
   return { subject, html, text: subject };
 }
+
+/** Internal ops / lead alert rows (plain table for Gmail). */
+function leadRows(rows: Array<{ label: string; value: string }>): string {
+  return rows
+    .map(
+      (row) =>
+        `<tr>
+          <td style="padding:8px 12px;border-bottom:1px solid ${BORDER_SOFT};font-family:${FONT};font-size:13px;color:${TEXT_MUTED};width:140px;vertical-align:top;">${escapeHtml(row.label)}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid ${BORDER_SOFT};font-family:${FONT};font-size:14px;color:${WHITE};vertical-align:top;">${escapeHtml(row.value)}</td>
+        </tr>`,
+    )
+    .join('');
+}
+
+export type LeadAlertKind = 'signup' | 'email_verified' | 'checkout_started' | 'plan_activated';
+
+export function leadAlertEmail(input: {
+  kind: LeadAlertKind;
+  name: string;
+  email: string;
+  phone?: string | null;
+  gymName?: string | null;
+  plan?: string | null;
+  amountLabel?: string | null;
+  source?: string | null;
+}): MailTemplate {
+  const titles: Record<LeadAlertKind, string> = {
+    signup: 'New gym owner signup',
+    email_verified: 'Lead email verified — potential customer',
+    checkout_started: 'Checkout started — ready to pay',
+    plan_activated: 'Plan purchased — lead converted',
+  };
+  const title = titles[input.kind];
+  const subject = `[FITZENIX Lead] ${title} · ${input.email}`;
+  const rows = [
+    { label: 'Event', value: title },
+    { label: 'Name', value: input.name || '—' },
+    { label: 'Email', value: input.email },
+    { label: 'Phone', value: input.phone?.trim() || '—' },
+    { label: 'Gym', value: input.gymName?.trim() || '—' },
+    ...(input.plan ? [{ label: 'Plan', value: input.plan }] : []),
+    ...(input.amountLabel ? [{ label: 'Amount', value: input.amountLabel }] : []),
+    { label: 'Source', value: input.source || 'web' },
+    { label: 'Time', value: new Date().toISOString() },
+  ];
+  const html = layout({
+    preheader: subject,
+    titleHtml: `<span style="color:${RED};">Lead</span> alert`,
+    introHtml: `${escapeHtml(title)}. Reply to this lead or follow up from your CRM.`,
+    bodyHtml: `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:8px 0 0;border:1px solid ${BORDER};border-radius:12px;overflow:hidden;background:${GLASS_DARK};">${leadRows(rows)}</table>`,
+    showWelcome: false,
+  });
+  const text = [
+    title,
+    `Name: ${input.name}`,
+    `Email: ${input.email}`,
+    `Phone: ${input.phone || '—'}`,
+    `Gym: ${input.gymName || '—'}`,
+    input.plan ? `Plan: ${input.plan}` : null,
+    input.amountLabel ? `Amount: ${input.amountLabel}` : null,
+    `Source: ${input.source || 'web'}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+  return { subject, html, text };
+}

@@ -1,4 +1,5 @@
 import { Schema, model, Types, type Model, type HydratedDocument } from 'mongoose';
+import { invalidateReads } from '../../utils/hotCache';
 import { CURRENCY, INVOICE_STATUS, type InvoiceStatus } from '../../config/constants';
 
 export interface InvoiceLineItem {
@@ -61,6 +62,9 @@ const invoiceSchema = new Schema<IInvoice, InvoiceModel>(
   },
   { timestamps: true, toJSON: { versionKey: false } },
 );
+
+invoiceSchema.index({ gym: 1, status: 1 });
+invalidateReads(invoiceSchema, { gymFrom: 'gym' });
 
 export const Invoice = model<IInvoice, InvoiceModel>('Invoice', invoiceSchema);
 export default Invoice;

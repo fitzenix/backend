@@ -1,4 +1,5 @@
 import { Schema, model, Types, type Model, type HydratedDocument } from 'mongoose';
+import { invalidateReads } from '../../utils/hotCache';
 import { ATTENDANCE_STATUS, type AttendanceStatus } from '../../config/constants';
 
 export type AttendanceSource = 'self' | 'staff' | 'qr';
@@ -45,6 +46,8 @@ const attendanceSchema = new Schema<IAttendance, AttendanceModel>(
 attendanceSchema.index({ member: 1, checkInAt: -1 });
 // Speeds up the "open check-in" lookup (unique-ish per member while checked in).
 attendanceSchema.index({ gym: 1, member: 1, status: 1 });
+attendanceSchema.index({ gym: 1, checkInAt: -1 });
+invalidateReads(attendanceSchema, { gymFrom: 'gym' });
 
 export const Attendance = model<IAttendance, AttendanceModel>('Attendance', attendanceSchema);
 export default Attendance;

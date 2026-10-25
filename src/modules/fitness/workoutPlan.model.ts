@@ -1,4 +1,5 @@
 import { Schema, model, Types, type Model, type HydratedDocument } from 'mongoose';
+import { invalidateReads } from '../../utils/hotCache';
 
 export interface Exercise {
   name: string;
@@ -63,6 +64,10 @@ const workoutPlanSchema = new Schema<IWorkoutPlan, WorkoutPlanModel>(
   },
   { timestamps: true, toJSON: { versionKey: false } },
 );
+
+workoutPlanSchema.index({ gym: 1, member: 1, deletedAt: 1, isActive: 1 });
+workoutPlanSchema.index({ gym: 1, trainer: 1, deletedAt: 1, isActive: 1 });
+invalidateReads(workoutPlanSchema, { gymFrom: 'gym' });
 
 export const WorkoutPlan = model<IWorkoutPlan, WorkoutPlanModel>('WorkoutPlan', workoutPlanSchema);
 export default WorkoutPlan;

@@ -1,4 +1,5 @@
 import { Schema, model, Types, type Model, type HydratedDocument } from 'mongoose';
+import { invalidateReads } from '../../utils/hotCache';
 import { ENQUIRY_STATUS, type EnquiryStatus } from '../../config/constants';
 
 export interface IEnquiry {
@@ -41,6 +42,7 @@ const enquirySchema = new Schema<IEnquiry, EnquiryModel>(
 );
 
 enquirySchema.index({ gym: 1, status: 1, createdAt: -1 });
+invalidateReads(enquirySchema, { gymFrom: 'gym' });
 
 export const Enquiry = model<IEnquiry, EnquiryModel>('Enquiry', enquirySchema);
 export default Enquiry;
