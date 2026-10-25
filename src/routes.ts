@@ -15,6 +15,7 @@ import financeRoutes from './modules/finance/finance.routes';
 import enquiryRoutes from './modules/enquiries/enquiry.routes';
 import importRoutes from './modules/imports/import.routes';
 import billingRoutes from './modules/billing/billing.routes';
+import demoRequestRoutes from './modules/demoRequests/demoRequest.routes';
 
 const router = Router();
 
@@ -38,5 +39,6 @@ router.use('/finance', financeRoutes);
 router.use('/enquiries', enquiryRoutes);
 router.use('/imports', importRoutes);
 router.use('/billing', billingRoutes);
+router.use('/demo-requests', demoRequestRoutes);
 
 export default router;
