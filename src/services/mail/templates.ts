@@ -1,4 +1,3 @@
-import { env } from '../../config/env';
 /** FITZENIX transactional email design tokens (2026 premium dark glass). */
 const RED = '#FF1B27';
 const BG = '#05070B';
@@ -432,5 +431,66 @@ export function leadAlertEmail(input: {
   ]
     .filter(Boolean)
     .join('\n');
+  return { subject, html, text };
+}
+
+export function demoRequestAcknowledgementEmail(input: { name: string; gymName: string }): MailTemplate {
+  const first = escapeHtml(input.name.split(' ')[0] || 'there');
+  const gymName = escapeHtml(input.gymName);
+  const subject = 'We received your FITZENIX demo request';
+  const html = layout({
+    preheader: 'Your FITZENIX demo request has been received.',
+    titleHtml: `Demo request <span style="color:${RED};">received</span>`,
+    introHtml: `Hi ${first}, thanks for requesting a FITZENIX demo for <strong style="color:${WHITE};font-weight:600;">${gymName}</strong>. Our team will be in touch soon.`,
+    bodyHtml: '',
+    showWelcome: false,
+  });
+  return {
+    subject,
+    html,
+    text: `Hi ${input.name}, we received your FITZENIX demo request for ${input.gymName}. Our team will be in touch soon.`,
+  };
+}
+
+export function demoRequestLeadEmail(input: {
+  name: string;
+  email: string;
+  phone: string;
+  city: string;
+  gymName: string;
+  source?: string;
+  createdAt?: Date | string;
+}): MailTemplate {
+  const submittedAt = input.createdAt
+    ? new Date(input.createdAt).toISOString()
+    : new Date().toISOString();
+  const rows = [
+    { label: 'Name', value: input.name },
+    { label: 'Email', value: input.email },
+    { label: 'Phone', value: input.phone },
+    { label: 'City', value: input.city },
+    { label: 'Gym', value: input.gymName },
+    { label: 'Source', value: input.source || 'website' },
+    { label: 'Submitted', value: submittedAt },
+  ];
+  const subject = '[FITZENIX] New demo request';
+  const html = layout({
+    preheader: subject,
+    titleHtml: `<span style="color:${RED};">Demo</span> request`,
+    introHtml: 'A new gym has requested a FITZENIX demo.',
+    bodyHtml: `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:8px 0 0;border:1px solid ${BORDER};border-radius:12px;overflow:hidden;background:${GLASS_DARK};">${leadRows(rows)}</table>`,
+    showWelcome: false,
+  });
+  const text = [
+    'New FITZENIX demo request',
+    `Name: ${input.name}`,
+    `Email: ${input.email}`,
+    `Phone: ${input.phone}`,
+    `City: ${input.city}`,
+    `Gym: ${input.gymName}`,
+    `Source: ${input.source || 'website'}`,
+    `Submitted: ${submittedAt}`,
+  ].join('\n');
+
   return { subject, html, text };
 }
