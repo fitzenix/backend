@@ -4,6 +4,7 @@ import cors from 'cors';
 import compression from 'compression';
 import morgan from 'morgan';
 import path from 'node:path';
+import mongoose from 'mongoose';
 import swaggerUi from 'swagger-ui-express';
 import { env } from './config/env';
 import { logger } from './config/logger';
@@ -59,12 +60,18 @@ export function createApp(): Application {
   // Serve locally-stored uploads (when STORAGE_DRIVER=local).
   app.use('/uploads', express.static(path.resolve(env.storage.uploadDir)));
 
-  app.get('/health', (_req: Request, res: Response) =>
-    res.json({ success: true, data: { status: 'ok', uptime: process.uptime() } }),
-  );
+  app.get('/health', (_req: Request, res: Response) => {
+    const dbUp = mongoose.connection.readyState === 1;
+    res.status(dbUp ? 200 : 503).json({
+      success: dbUp,
+      data: { status: dbUp ? 'ok' : 'degraded', db: dbUp ? 'up' : 'down', uptime: process.uptime() },
+    });
+  });
 
-  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { customSiteTitle: 'Fitzenix API' }));
-  app.get('/api/docs.json', (_req: Request, res: Response) => res.json(swaggerSpec));
+  if (!env.isProd || process.env.ENABLE_API_DOCS === 'true') {
+    app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { customSiteTitle: 'Fitzenix API' }));
+    app.get('/api/docs.json', (_req: Request, res: Response) => res.json(swaggerSpec));
+  }
 
   app.use(env.apiPrefix, apiRoutes);
 

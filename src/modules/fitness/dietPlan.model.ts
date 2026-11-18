@@ -1,4 +1,5 @@
 import { Schema, model, Types, type Model, type HydratedDocument } from 'mongoose';
+import { invalidateReads } from '../../utils/hotCache';
 
 export interface MealItem {
   food: string;
@@ -67,6 +68,10 @@ const dietPlanSchema = new Schema<IDietPlan, DietPlanModel>(
   },
   { timestamps: true, toJSON: { versionKey: false } },
 );
+
+dietPlanSchema.index({ gym: 1, member: 1, deletedAt: 1, isActive: 1 });
+dietPlanSchema.index({ gym: 1, trainer: 1, deletedAt: 1, isActive: 1 });
+invalidateReads(dietPlanSchema, { gymFrom: 'gym' });
 
 export const DietPlan = model<IDietPlan, DietPlanModel>('DietPlan', dietPlanSchema);
 export default DietPlan;

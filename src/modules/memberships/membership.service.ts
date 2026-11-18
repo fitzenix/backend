@@ -68,7 +68,7 @@ export const membershipService = {
   },
 
   // ── Subscriptions ────────────────────────────────────
-  async listSubscriptions(ctx: Ctx): Promise<Paginated<SubscriptionDocument>> {
+  async listSubscriptions(ctx: Ctx) {
     const gym = requireTenant(ctx);
     const q = (ctx.validatedQuery ?? {}) as ListQuery;
     const { page, limit, skip, sort } = parseListQuery(q);
@@ -82,8 +82,10 @@ export const membershipService = {
         .sort(sort)
         .skip(skip)
         .limit(limit)
+        .select('-__v')
         .populate('member', 'name email phone avatar status')
-        .populate('plan', 'name durationDays pricePaise'),
+        .populate('plan', 'name durationDays pricePaise')
+        .lean(),
       Subscription.countDocuments(filter),
     ]);
     return { items, page, limit, total };

@@ -6,6 +6,7 @@ import type {
   GatewayOrder,
   VerifyPaymentSignatureInput,
   VerifyWebhookInput,
+  ConfirmPaymentInput,
   RefundInput,
   GatewayRefund,
 } from './PaymentGateway';
@@ -30,6 +31,8 @@ export class MockGateway implements PaymentGateway {
   verifyPaymentSignature({ orderId, paymentId, signature }: VerifyPaymentSignatureInput): boolean {
     return MockGateway.sign(`${orderId}|${paymentId}`) === signature;
   }
+
+  async confirmPayment(_input: ConfirmPaymentInput): Promise<void> {}
 
   verifyWebhookSignature({ rawBody, signature }: VerifyWebhookInput): boolean {
     return MockGateway.sign(rawBody) === signature;

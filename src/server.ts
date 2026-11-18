@@ -3,10 +3,13 @@ import { createApp } from './app';
 import { connectDB } from './config/db';
 import { initSocket } from './realtime/socket';
 import { startScheduler } from './jobs/scheduler';
-import { env } from './config/env';
+import { env, assertProductionEnv } from './config/env';
 import { logger } from './config/logger';
 
 async function bootstrap(): Promise<void> {
+  const { warnings } = assertProductionEnv();
+  warnings.forEach((w) => logger.warn(w));
+
   await connectDB();
 
   const app = createApp();
@@ -17,7 +20,7 @@ async function bootstrap(): Promise<void> {
 
   server.listen(env.port, () => {
     logger.info(`Fitzenix API listening on :${env.port} (${env.nodeEnv})`);
-    logger.info(`Docs at http://localhost:${env.port}/api/docs`);
+    if (!env.isProd) logger.info(`Docs at http://localhost:${env.port}/api/docs`);
   });
 
   const shutdown = (signal: NodeJS.Signals): void => {

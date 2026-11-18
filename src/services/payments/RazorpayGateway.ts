@@ -8,6 +8,7 @@ import type {
   GatewayOrder,
   VerifyPaymentSignatureInput,
   VerifyWebhookInput,
+  ConfirmPaymentInput,
   RefundInput,
   GatewayRefund,
 } from './PaymentGateway';
@@ -17,6 +18,8 @@ interface RazorpayClient {
   orders: { create(opts: Record<string, unknown>): Promise<{ id: string; amount: number; currency: string }> };
   payments: {
     refund(paymentId: string, opts: { amount: number }): Promise<{ id: string; status: string; amount: number }>;
+    fetch(paymentId: string): Promise<{ id: string; status: string; order_id: string; amount: number; currency: string }>;
+    capture(paymentId: string, amount: number, currency: string): Promise<{ id: string; status: string }>;
   };
 }
 
@@ -48,6 +51,9 @@ export class RazorpayGateway implements PaymentGateway {
   }
 
   async createOrder({ amountPaise, currency = CURRENCY, receipt, notes, method }: CreateOrderInput): Promise<GatewayOrder> {
+    if (!Number.isInteger(amountPaise) || amountPaise < 100) {
+      throw ApiError.badRequest('Amount must be at least 100 paise');
+    }
     const client = await this.getClient();
     const stringNotes = Object.fromEntries(
       Object.entries(notes ?? {}).map(([k, v]) => [k, v == null ? '' : String(v)]),
@@ -72,6 +78,31 @@ export class RazorpayGateway implements PaymentGateway {
       .update(`${orderId}|${paymentId}`)
       .digest('hex');
     return safeEqual(expected, signature);
+  }
+
+  async confirmPayment({ paymentId, orderId, amountPaise, currency }: ConfirmPaymentInput): Promise<void> {
+    const client = await this.getClient();
+    let row: Awaited<ReturnType<RazorpayClient['payments']['fetch']>>;
+    try {
+      row = await client.payments.fetch(paymentId);
+    } catch (err) {
+      throw mapRazorpayError(err);
+    }
+    if (row.order_id !== orderId) throw ApiError.badRequest('Payment does not belong to this order');
+    if (row.amount !== amountPaise || row.currency !== currency) {
+      throw ApiError.badRequest('Payment amount does not match the order');
+    }
+    if (row.status === 'authorized') {
+      try {
+        const captured = await client.payments.capture(paymentId, amountPaise, currency);
+        if (captured.status === 'captured') return;
+      } catch (err) {
+        throw mapRazorpayError(err);
+      }
+    }
+    if (row.status !== 'captured') {
+      throw ApiError.badRequest('Payment has not been completed. If money was debited, it will be refunded automatically.');
+    }
   }
 
   verifyWebhookSignature({ rawBody, signature }: VerifyWebhookInput): boolean {

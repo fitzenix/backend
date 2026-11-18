@@ -99,6 +99,12 @@ export const paymentService = {
     const payment = await Payment.findOne({ orderId, gym: requireTenant(ctx) });
     if (!payment) throw ApiError.notFound('Payment not found');
     if (payment.status === PAYMENT_STATUS.PAID) return payment; // idempotent
+    await gateway.confirmPayment({
+      paymentId,
+      orderId,
+      amountPaise: payment.amountPaise,
+      currency: payment.currency,
+    });
     await this.settlePayment(payment, paymentId);
     return payment;
   },

@@ -1,4 +1,5 @@
 import { Schema, model, Types, type Model, type HydratedDocument } from 'mongoose';
+import { invalidateReads } from '../../utils/hotCache';
 import bcrypt from 'bcryptjs';
 import { env } from '../../config/env';
 import { ROLE_VALUES, USER_STATUS, type Role, type UserStatus } from '../../config/constants';
@@ -164,6 +165,10 @@ const userSchema = new Schema<IUser, UserModel, IUserMethods>(
 
 // Email is globally unique so login-by-email is unambiguous across tenants.
 userSchema.index({ email: 1 }, { unique: true });
+// Member/trainer lists and dashboard counts all filter gym + role + deletedAt.
+userSchema.index({ gym: 1, role: 1, deletedAt: 1, createdAt: -1 });
+userSchema.index({ gym: 1, role: 1, deletedAt: 1, 'memberProfile.assignedTrainer': 1 });
+invalidateReads(userSchema, { gymFrom: 'gym', user: true });
 
 userSchema.methods.comparePassword = function comparePassword(plain: string): Promise<boolean> {
   return bcrypt.compare(plain, this.passwordHash);

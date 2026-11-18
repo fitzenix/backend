@@ -28,6 +28,16 @@ export const authLimiter: RateLimitRequestHandler = rateLimit({
   handler: rejectWith('Too many attempts, please slow down.'),
 });
 
+/** Token refresh: looser than login since every app session hits it every 15 min. */
+export const refreshLimiter: RateLimitRequestHandler = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: env.isProd ? 60 : 500,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => env.isTest,
+  handler: rejectWith('Too many attempts, please slow down.'),
+});
+
 /** Limit broadcast / bulk push endpoints to reduce abuse. */
 export const sendLimiter: RateLimitRequestHandler = rateLimit({
   windowMs: 60 * 1000,

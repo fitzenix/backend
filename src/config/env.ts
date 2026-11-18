@@ -34,8 +34,9 @@ export const env = {
   corsOrigins: Array.from(
     new Set([
       'https://www.fitzenix.app',
-      'http://localhost:3000',
-      'http://localhost:5173',
+      ...(process.env.NODE_ENV === 'production'
+        ? []
+        : ['http://localhost:3000', 'http://localhost:5173']),
       ...configuredCorsOrigins,
     ]),
   ),
@@ -144,9 +145,49 @@ export const env = {
   app: {
     name: envStr(process.env.APP_NAME, 'Fitzenix'),
     webUrl: envStr(process.env.APP_WEB_URL, 'https://www.fitzenix.app'),
-    supportEmail: envStr(process.env.SUPPORT_EMAIL, 'support@fitzenix.com'),
+    supportEmail: envStr(process.env.SUPPORT_EMAIL, 'support@fitzenix.app'),
+    /** Internal inbox for signup / verify / checkout lead alerts (ZeptoMail). */
+    leadsEmail: envStr(process.env.LEADS_EMAIL, 'fitzenixofficial@gmail.com'),
   },
 } as const;
+
+/**
+ * Refuse to boot in production with dev defaults that would silently weaken
+ * auth or let plans activate without real payment.
+ */
+export function assertProductionEnv(): { warnings: string[] } {
+  const warnings: string[] = [];
+  if (!env.isProd) return { warnings };
+
+  const errors: string[] = [];
+  if (!process.env.MONGO_URI) errors.push('MONGO_URI is not set');
+  if (!process.env.JWT_ACCESS_SECRET || env.jwt.accessSecret === 'dev_access_secret') {
+    errors.push('JWT_ACCESS_SECRET must be set to a strong secret');
+  }
+  if (!process.env.JWT_REFRESH_SECRET || env.jwt.refreshSecret === 'dev_refresh_secret') {
+    errors.push('JWT_REFRESH_SECRET must be set to a strong secret');
+  }
+  if (env.jwt.accessSecret === env.jwt.refreshSecret) {
+    errors.push('JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must differ');
+  }
+  if (env.payments.gateway !== 'razorpay') errors.push('PAYMENT_GATEWAY must be "razorpay"');
+  if (!env.payments.razorpay.keyId || !env.payments.razorpay.keySecret) {
+    errors.push('RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are required');
+  }
+  if (env.mail.driver === 'log') errors.push('MAIL_DRIVER=log prints OTP emails to logs');
+
+  if (env.payments.razorpay.keyId.startsWith('rzp_test_')) {
+    warnings.push('RAZORPAY_KEY_ID is a test key — real payments will not be collected');
+  }
+  if (!env.payments.razorpay.webhookSecret) {
+    warnings.push('RAZORPAY_WEBHOOK_SECRET is empty — Razorpay webhooks will be rejected');
+  }
+
+  if (errors.length) {
+    throw new Error(`Unsafe production configuration:\n- ${errors.join('\n- ')}`);
+  }
+  return { warnings };
+}
 
 export type Env = typeof env;
 export default env;
