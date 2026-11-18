@@ -1,3 +1,4 @@
+import { env } from '../../config/env';
 /** FITZENIX transactional email design tokens (2026 premium dark glass). */
 const RED = '#FF1B27';
 const BG = '#05070B';
