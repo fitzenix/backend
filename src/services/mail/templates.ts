@@ -433,3 +433,60 @@ export function leadAlertEmail(input: {
     .join('\n');
   return { subject, html, text };
 }
+
+export function demoRequestAcknowledgementEmail(input: { name: string; gymName: string }): MailTemplate {
+  const first = escapeHtml(input.name.split(' ')[0] || 'there');
+  const gymName = escapeHtml(input.gymName);
+  const subject = 'We received your FITZENIX demo request';
+  const html = layout({
+    preheader: `Thanks for requesting a FITZENIX demo for ${input.gymName}.`,
+    titleHtml: `Thanks for your <span style="color:${RED};">demo request</span>`,
+    introHtml: `Hi ${first}, we received your request to see FITZENIX for <strong style="color:${WHITE};font-weight:600;">${gymName}</strong>. Our team will be in touch soon to arrange your demo.`,
+    bodyHtml: '',
+    showWelcome: true,
+  });
+  return {
+    subject,
+    html,
+    text: `Hi ${input.name}, we received your request to see FITZENIX for ${input.gymName}. Our team will be in touch soon to arrange your demo.`,
+  };
+}
+
+export function demoRequestLeadEmail(input: {
+  name: string;
+  phone: string;
+  email: string;
+  city: string;
+  gymName: string;
+  source: string;
+  createdAt: Date;
+}): MailTemplate {
+  const subject = `[FITZENIX Demo Request] ${input.gymName}`;
+  const rows = [
+    { label: 'Name', value: input.name },
+    { label: 'Email', value: input.email },
+    { label: 'Phone', value: input.phone },
+    { label: 'Gym', value: input.gymName },
+    { label: 'City', value: input.city },
+    { label: 'Source', value: input.source },
+    { label: 'Time', value: input.createdAt.toISOString() },
+  ];
+  const html = layout({
+    preheader: `New demo request from ${input.gymName}.`,
+    titleHtml: `<span style="color:${RED};">New</span> demo request`,
+    introHtml: 'A gym has requested a FITZENIX demo. Follow up using the contact details below.',
+    bodyHtml: `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:8px 0 0;border:1px solid ${BORDER};border-radius:12px;overflow:hidden;background:${GLASS_DARK};">${leadRows(rows)}</table>`,
+    showWelcome: false,
+  });
+  const text = [
+    'New FITZENIX demo request',
+    `Name: ${input.name}`,
+    `Email: ${input.email}`,
+    `Phone: ${input.phone}`,
+    `Gym: ${input.gymName}`,
+    `City: ${input.city}`,
+    `Source: ${input.source}`,
+    `Time: ${input.createdAt.toISOString()}`,
+  ].join('\n');
+  return { subject, html, text };
+}
