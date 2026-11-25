@@ -5,7 +5,7 @@ export type WorkoutCadence = 'weekly' | 'daily' | 'custom';
 
 export interface IWorkoutTemplate {
   gym: Types.ObjectId;
-  trainer: Types.ObjectId;
+  trainer: Types.ObjectId | null;
   title: string;
   description: string;
   cadence: WorkoutCadence;
@@ -42,7 +42,7 @@ const daySchema = new Schema<WorkoutDay>(
 const workoutTemplateSchema = new Schema<IWorkoutTemplate, WorkoutTemplateModel>(
   {
     gym: { type: Schema.Types.ObjectId, ref: 'Gym', required: true, index: true },
-    trainer: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    trainer: { type: Schema.Types.ObjectId, ref: 'User', default: null, index: true },
     title: { type: String, required: true, trim: true },
     description: { type: String, default: '' },
     cadence: { type: String, enum: ['weekly', 'daily', 'custom'], default: 'weekly' },

@@ -138,23 +138,43 @@ class StorageService {
     return { key, url: `/uploads/${key}` };
   }
 
-  async delete(key: string | undefined): Promise<void> {
+  async deleteStrict(key: string | undefined, url?: string): Promise<void> {
     if (!key) return;
+    const cloudinaryConfigured = Boolean(
+      env.storage.cloudinary.cloudName &&
+        env.storage.cloudinary.apiKey &&
+        env.storage.cloudinary.apiSecret,
+    );
+    const cloudinaryObject =
+      url?.includes('res.cloudinary.com') ||
+      this.driver === 'cloudinary' ||
+      (key.includes('Members Profile') && cloudinaryConfigured);
+    if (cloudinaryObject) {
+      const cloudinary = await this.getCloudinary();
+      const result = await cloudinary.uploader.destroy(key);
+      if (result.result !== 'ok' && result.result !== 'not found') {
+        throw new Error(`Cloudinary did not confirm deletion of ${key}`);
+      }
+      return;
+    }
+
+    if (this.driver === 's3') {
+      const { DeleteObjectCommand } = await import('@aws-sdk/client-s3');
+      const s3 = await this.getS3();
+      await s3.send(new DeleteObjectCommand({ Bucket: env.storage.s3.bucket, Key: key }));
+      return;
+    }
+
     try {
-      if (this.driver === 'cloudinary' || key.includes('Members Profile')) {
-        const cloudinary = await this.getCloudinary().catch(() => null);
-        if (cloudinary) {
-          await cloudinary.uploader.destroy(key);
-          return;
-        }
-      }
-      if (this.driver === 's3') {
-        const { DeleteObjectCommand } = await import('@aws-sdk/client-s3');
-        const s3 = await this.getS3();
-        await s3.send(new DeleteObjectCommand({ Bucket: env.storage.s3.bucket, Key: key }));
-      } else if (this.driver === 'local') {
-        await fs.unlink(path.join(env.storage.uploadDir, key)).catch(() => {});
-      }
+      await fs.unlink(path.join(env.storage.uploadDir, key));
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+    }
+  }
+
+  async delete(key: string | undefined): Promise<void> {
+    try {
+      await this.deleteStrict(key);
     } catch (err) {
       logger.warn({ err, key }, 'Failed to delete stored file');
     }

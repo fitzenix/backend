@@ -16,6 +16,7 @@ import enquiryRoutes from './modules/enquiries/enquiry.routes';
 import importRoutes from './modules/imports/import.routes';
 import billingRoutes from './modules/billing/billing.routes';
 import demoRequestRoutes from './modules/demoRequests/demoRequest.routes';
+import accountDeletionRoutes from './modules/accountDeletion/accountDeletion.routes';
 
 const router = Router();
 
@@ -40,5 +41,6 @@ router.use('/enquiries', enquiryRoutes);
 router.use('/imports', importRoutes);
 router.use('/billing', billingRoutes);
 router.use('/demo-requests', demoRequestRoutes);
+router.use('/account/deletion', accountDeletionRoutes);
 
 export default router;

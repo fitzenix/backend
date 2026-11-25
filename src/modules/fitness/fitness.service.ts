@@ -30,7 +30,7 @@ const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', '
 interface PlanBase {
   gym: Types.ObjectId;
   member: Types.ObjectId;
-  trainer: Types.ObjectId;
+  trainer: Types.ObjectId | null;
   title: string;
   isActive: boolean;
   deletedAt: Date | null;

@@ -33,6 +33,7 @@ export const env = {
   apiPrefix: process.env.API_PREFIX ?? '/api/v1',
   corsOrigins: Array.from(
     new Set([
+      'https://fitzenix.app',
       'https://www.fitzenix.app',
       ...(process.env.NODE_ENV === 'production'
         ? []

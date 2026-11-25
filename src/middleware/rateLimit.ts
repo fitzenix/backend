@@ -28,6 +28,25 @@ export const authLimiter: RateLimitRequestHandler = rateLimit({
   handler: rejectWith('Too many attempts, please slow down.'),
 });
 
+/** Account-deletion endpoints remain throttled outside production to protect identities. */
+export const deletionLimiter: RateLimitRequestHandler = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: env.isProd ? 5 : 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => env.isTest,
+  handler: rejectWith('Too many deletion requests. Please try again later.'),
+});
+
+export const deletionVerifyLimiter: RateLimitRequestHandler = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: env.isProd ? 10 : 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => env.isTest,
+  handler: rejectWith('Too many verification attempts. Please try again later.'),
+});
+
 /** Token refresh: looser than login since every app session hits it every 15 min. */
 export const refreshLimiter: RateLimitRequestHandler = rateLimit({
   windowMs: 15 * 60 * 1000,

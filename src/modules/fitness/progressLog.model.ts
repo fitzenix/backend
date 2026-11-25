@@ -4,7 +4,7 @@ import type { StorageObject } from '../../types/index';
 export interface IProgressLog {
   gym: Types.ObjectId;
   member: Types.ObjectId;
-  recordedBy: Types.ObjectId;
+  recordedBy: Types.ObjectId | null;
   date: Date;
   weightKg?: number;
   bodyFatPct?: number;
@@ -28,7 +28,7 @@ const progressLogSchema = new Schema<IProgressLog, ProgressLogModel>(
   {
     gym: { type: Schema.Types.ObjectId, ref: 'Gym', required: true, index: true },
     member: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    recordedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    recordedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     date: { type: Date, required: true, default: Date.now },
     weightKg: { type: Number, min: 0 },
     bodyFatPct: { type: Number, min: 0, max: 100 },

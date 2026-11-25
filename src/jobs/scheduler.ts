@@ -11,6 +11,7 @@ import { Gym } from '../modules/gyms/gym.model';
 import { mailService } from '../services/mail/mail.service';
 import { paymentReminderEmail } from '../services/mail/templates';
 import { getFirebaseApp } from '../firebase/admin';
+import { accountDeletionService } from '../modules/accountDeletion/accountDeletion.service';
 
 /**
  * Lightweight in-process scheduler. For production scale, move these to a Redis
@@ -246,8 +247,17 @@ export async function runNotificationQueue(): Promise<void> {
   }
 }
 
+async function runAccountDeletionMaintenance(): Promise<void> {
+  try {
+    await accountDeletionService.retryPending();
+  } catch (err) {
+    logger.error({ err }, 'Account deletion maintenance job failed');
+  }
+}
+
 let membershipTimer: NodeJS.Timeout | null = null;
 let queueTimer: NodeJS.Timeout | null = null;
+let deletionTimer: NodeJS.Timeout | null = null;
 
 export function startScheduler(): void {
   if (env.isTest) return;
@@ -266,10 +276,15 @@ export function startScheduler(): void {
   queueTimer = setInterval(runNotificationQueue, FIVE_MIN);
   queueTimer.unref();
 
+  setTimeout(runAccountDeletionMaintenance, 25_000).unref();
+  deletionTimer = setInterval(runAccountDeletionMaintenance, FIVE_MIN);
+  deletionTimer.unref();
+
   logger.info('Background scheduler started');
 }
 
 export function stopScheduler(): void {
   if (membershipTimer) clearInterval(membershipTimer);
   if (queueTimer) clearInterval(queueTimer);
+  if (deletionTimer) clearInterval(deletionTimer);
 }

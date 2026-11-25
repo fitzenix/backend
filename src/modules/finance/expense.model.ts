@@ -10,7 +10,7 @@ export interface IExpense {
   note?: string;
   date: Date;
   currency: string;
-  recordedBy: Types.ObjectId;
+  recordedBy: Types.ObjectId | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -32,7 +32,7 @@ const expenseSchema = new Schema<IExpense, ExpenseModel>(
     note: { type: String, trim: true },
     date: { type: Date, default: Date.now, index: true },
     currency: { type: String, default: CURRENCY },
-    recordedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    recordedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
   },
   { timestamps: true, toJSON: { versionKey: false } },
 );

@@ -18,7 +18,7 @@ export interface WorkoutDay {
 export interface IWorkoutPlan {
   gym: Types.ObjectId;
   member: Types.ObjectId;
-  trainer: Types.ObjectId;
+  trainer: Types.ObjectId | null;
   title: string;
   description: string;
   days: WorkoutDay[];
@@ -55,7 +55,7 @@ const workoutPlanSchema = new Schema<IWorkoutPlan, WorkoutPlanModel>(
   {
     gym: { type: Schema.Types.ObjectId, ref: 'Gym', required: true, index: true },
     member: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    trainer: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    trainer: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     title: { type: String, required: true },
     description: { type: String, default: '' },
     days: { type: [daySchema], default: [] },

@@ -490,3 +490,76 @@ export function demoRequestLeadEmail(input: {
   ].join('\n');
   return { subject, html, text };
 }
+
+export function accountDeletionVerificationEmail(input: {
+  name: string;
+  code: string;
+  minutes: number;
+}): MailTemplate {
+  const first = escapeHtml(input.name.split(' ')[0] || 'there');
+  const subject = 'Verify your FITZENIX account deletion request';
+  const html = layout({
+    preheader: 'Use this code to verify your account deletion request.',
+    titleHtml: `Verify <span style="color:${RED};">account deletion</span>`,
+    introHtml: `Hi ${first}, enter this one-time code to verify your request. If you did not request account deletion, ignore this email.`,
+    bodyHtml: otpBoxSection(input.code, input.minutes),
+    showWelcome: false,
+  });
+  return {
+    subject,
+    html,
+    text: `Your FITZENIX account deletion verification code is ${input.code}. It expires in ${input.minutes} minutes. If you did not request deletion, ignore this email.`,
+  };
+}
+
+export function accountDeletionSupportReviewEmail(input: {
+  requestId: string;
+  name: string;
+  email: string;
+  gymName: string;
+  reason?: string;
+}): MailTemplate {
+  const subject = `[FITZENIX] Gym-owner deletion review ${input.requestId}`;
+  const rows = [
+    { label: 'Request ID', value: input.requestId },
+    { label: 'Owner', value: input.name },
+    { label: 'Registered email', value: input.email },
+    { label: 'Gym', value: input.gymName },
+    ...(input.reason ? [{ label: 'Reason', value: input.reason }] : []),
+  ];
+  const html = layout({
+    preheader: 'A verified gym-owner deletion request requires transfer or closure review.',
+    titleHtml: `<span style="color:${RED};">Owner</span> deletion review`,
+    introHtml: 'A gym owner verified an account deletion request. Complete the business transfer or closure review before resolving it in the support API.',
+    bodyHtml: `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:8px 0 0;border:1px solid ${BORDER};border-radius:12px;overflow:hidden;background:${GLASS_DARK};">${leadRows(rows)}</table>`,
+    showWelcome: false,
+  });
+  return {
+    subject,
+    html,
+    text: [
+      'Verified gym-owner account deletion request',
+      `Request ID: ${input.requestId}`,
+      `Owner: ${input.name}`,
+      `Registered email: ${input.email}`,
+      `Gym: ${input.gymName}`,
+      input.reason ? `Reason: ${input.reason}` : null,
+    ].filter(Boolean).join('\n'),
+  };
+}
+
+export function accountDeletionCompleteEmail(): MailTemplate {
+  const subject = 'Your FITZENIX account deletion is complete';
+  const html = layout({
+    preheader: 'Your FITZENIX account data deletion has been completed.',
+    titleHtml: `Account deletion <span style="color:${RED};">complete</span>`,
+    introHtml: 'Your FITZENIX account has been deleted or anonymized. Some gym financial records may remain without direct account identifiers where retention is required.',
+    bodyHtml: '',
+    showWelcome: false,
+  });
+  return {
+    subject,
+    html,
+    text: 'Your FITZENIX account has been deleted or anonymized. Some gym financial records may remain without direct account identifiers where retention is required.',
+  };
+}
