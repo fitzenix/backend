@@ -68,7 +68,7 @@ export const membershipService = {
   },
 
   // ── Subscriptions ────────────────────────────────────
-  async listSubscriptions(ctx: Ctx): Promise<Paginated<SubscriptionDocument>> {
+  async listSubscriptions(ctx: Ctx) {
     const gym = requireTenant(ctx);
     const q = (ctx.validatedQuery ?? {}) as ListQuery;
     const { page, limit, skip, sort } = parseListQuery(q);
@@ -82,8 +82,11 @@ export const membershipService = {
         .sort(sort)
         .skip(skip)
         .limit(limit)
+        .select('-__v')
         .populate('member', 'name email phone avatar status')
-        .populate('plan', 'name durationDays pricePaise'),
+        .populate('plan', 'name durationDays pricePaise')
+        // Virtuals (isCurrentlyActive) are omitted by default lean — keep them for clients.
+        .lean({ virtuals: true }),
       Subscription.countDocuments(filter),
     ]);
     return { items, page, limit, total };
@@ -95,8 +98,24 @@ export const membershipService = {
     if (!member) throw ApiError.notFound('Member not found in this gym');
 
     const plan = await this.getPlan(ctx, input.planId);
-    const start = input.startDate ? new Date(input.startDate) : new Date();
-    const end = addDays(start, plan.durationDays);
+    const now = new Date();
+    // Extend from remaining endDate so renewals keep unused days without a coverage gap.
+    let start = input.startDate ? new Date(input.startDate) : now;
+    let end = addDays(start, plan.durationDays);
+    if (!input.startDate) {
+      const currentActive = await Subscription.findOne({
+        gym,
+        member: member._id,
+        status: SUBSCRIPTION_STATUS.ACTIVE,
+        endDate: { $gte: now },
+      })
+        .select('endDate')
+        .lean();
+      if (currentActive?.endDate && currentActive.endDate > now) {
+        start = now;
+        end = addDays(new Date(currentActive.endDate), plan.durationDays);
+      }
+    }
 
     const sub = await Subscription.create({
       gym,
@@ -183,6 +202,16 @@ export const membershipService = {
     sub.status = SUBSCRIPTION_STATUS.ACTIVE;
     if (paymentId) sub.payment = paymentId as Types.ObjectId;
     await sub.save();
+    // One live membership at a time once payment settles.
+    await Subscription.updateMany(
+      {
+        gym: sub.gym,
+        member: sub.member,
+        status: SUBSCRIPTION_STATUS.ACTIVE,
+        _id: { $ne: sub._id },
+      },
+      { $set: { status: SUBSCRIPTION_STATUS.CANCELLED, cancelledAt: new Date() } },
+    );
     await notificationService.notify({
       gym: sub.gym,
       user: sub.member,

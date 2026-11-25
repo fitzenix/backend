@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authController } from './auth.controller';
 import { validate } from '../../middleware/validate';
 import { authenticate } from '../../middleware/auth';
-import { authLimiter } from '../../middleware/rateLimit';
+import { authLimiter, refreshLimiter } from '../../middleware/rateLimit';
 import {
   registerSchema,
   loginSchema,
@@ -20,7 +20,7 @@ const router = Router();
 
 router.post('/register', authLimiter, validate({ body: registerSchema }), authController.register);
 router.post('/login', authLimiter, validate({ body: loginSchema }), authController.login);
-router.post('/refresh', validate({ body: refreshSchema }), authController.refresh);
+router.post('/refresh', refreshLimiter, validate({ body: refreshSchema }), authController.refresh);
 router.post('/logout', validate({ body: logoutSchema }), authController.logout);
 
 router.post('/forgot-password', authLimiter, validate({ body: forgotPasswordSchema }), authController.forgotPassword);

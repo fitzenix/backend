@@ -48,14 +48,28 @@ export const paymentService = {
     const plan = await MembershipPlan.findOne({ _id: planId, gym, deletedAt: null });
     if (!plan) throw ApiError.notFound('Plan not found');
 
-    const start = new Date();
+    const now = new Date();
+    // Extend from remaining endDate so online renew keeps unused days without a coverage gap.
+    const currentActive = await Subscription.findOne({
+      gym,
+      member: member._id,
+      status: SUBSCRIPTION_STATUS.ACTIVE,
+      endDate: { $gte: now },
+    })
+      .select('endDate')
+      .lean();
+    const start = now;
+    const end =
+      currentActive?.endDate && currentActive.endDate > now
+        ? addDays(new Date(currentActive.endDate), plan.durationDays)
+        : addDays(start, plan.durationDays);
     const sub = await Subscription.create({
       gym,
       member: member._id,
       plan: plan._id,
       planSnapshot: { name: plan.name, durationDays: plan.durationDays, pricePaise: plan.pricePaise },
       startDate: start,
-      endDate: addDays(start, plan.durationDays),
+      endDate: end,
       status: SUBSCRIPTION_STATUS.PENDING,
     });
 
@@ -99,6 +113,12 @@ export const paymentService = {
     const payment = await Payment.findOne({ orderId, gym: requireTenant(ctx) });
     if (!payment) throw ApiError.notFound('Payment not found');
     if (payment.status === PAYMENT_STATUS.PAID) return payment; // idempotent
+    await gateway.confirmPayment({
+      paymentId,
+      orderId,
+      amountPaise: payment.amountPaise,
+      currency: payment.currency,
+    });
     await this.settlePayment(payment, paymentId);
     return payment;
   },
@@ -114,7 +134,25 @@ export const paymentService = {
       return { handled: false };
     }
 
-    if (event.event === 'payment.captured' && payment.status !== PAYMENT_STATUS.PAID) {
+    if (
+      (event.event === 'payment.captured' || event.event === 'payment.authorized') &&
+      payment.status !== PAYMENT_STATUS.PAID
+    ) {
+      // For authorized (manual capture), confirmPayment captures then we settle.
+      if (event.event === 'payment.authorized') {
+        try {
+          const gateway = getPaymentGateway();
+          await gateway.confirmPayment({
+            paymentId: entity.id,
+            orderId: entity.order_id,
+            amountPaise: payment.amountPaise,
+            currency: payment.currency,
+          });
+        } catch (err) {
+          logger.warn({ err, paymentId: entity.id }, 'Webhook authorized: capture/confirm failed');
+          return { handled: false };
+        }
+      }
       await this.settlePayment(payment, entity.id);
     } else if (event.event === 'payment.failed') {
       payment.status = PAYMENT_STATUS.FAILED;

@@ -15,6 +15,7 @@ router.get('/plans', billingController.plans);
 router.use(authenticate, resolveTenant);
 
 router.get('/status', billingController.status);
+router.get('/orders/:orderId', billingController.orderStatus);
 router.post('/checkout', validate({ body: billingCheckoutSchema }), billingController.checkout);
 router.post('/upi/collect', validate({ body: billingUpiCollectSchema }), billingController.upiCollect);
 router.post('/verify', validate({ body: billingVerifySchema }), billingController.verify);

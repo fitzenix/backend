@@ -47,7 +47,9 @@ export const paymentController = {
     const rawBody = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body);
 
     if (!gateway.verifyWebhookSignature({ rawBody, signature })) {
-      logger.warn('Invalid webhook signature');
+      logger.warn(
+        'Invalid webhook signature — set RAZORPAY_WEBHOOK_SECRET to the secret from Razorpay Dashboard → Webhooks',
+      );
       res.status(400).json({ success: false, error: { code: 'BAD_REQUEST', message: 'Invalid signature' } });
       return;
     }

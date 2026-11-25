@@ -57,7 +57,11 @@ export const financeService = {
     if (q.from || q.to) {
       filter.date = {};
       if (q.from) (filter.date as Record<string, Date>).$gte = new Date(q.from);
-      if (q.to) (filter.date as Record<string, Date>).$lte = new Date(q.to);
+      if (q.to) {
+        const end = new Date(q.to);
+        end.setHours(23, 59, 59, 999);
+        (filter.date as Record<string, Date>).$lte = end;
+      }
     }
     const [items, total] = await Promise.all([
       Expense.find(filter).sort(sort).skip(skip).limit(limit).populate('recordedBy', 'name'),
@@ -274,9 +278,11 @@ export const financeService = {
       paidRows,
       prevIncomeRow,
       refundRows,
+      prevRefundRows,
       unpaidInvoices,
       expenseRows,
       trendRows,
+      trendRefundRows,
       recentPayments,
       recentExpenses,
       activeSubs,
@@ -329,6 +335,18 @@ export const financeService = {
         },
         { $group: { _id: null, total: { $sum: '$amountPaise' }, count: { $sum: 1 } } },
       ]),
+      Payment.aggregate<TotalCountAgg>([
+        {
+          $match: {
+            gym,
+            status: PAYMENT_STATUS.REFUNDED,
+            purpose: { $ne: PAYMENT_PURPOSE.PLATFORM },
+            'notes.purpose': { $ne: PAYMENT_PURPOSE.PLATFORM },
+            updatedAt: { $gte: prevPeriodStart, $lt: prevPeriodEnd },
+          },
+        },
+        { $group: { _id: null, total: { $sum: '$amountPaise' }, count: { $sum: 1 } } },
+      ]),
       Invoice.find({ gym, status: INVOICE_STATUS.UNPAID, number: { $not: /^FX-/ } })
         .select('member totalPaise')
         .lean(),
@@ -355,21 +373,49 @@ export const financeService = {
         },
         { $sort: { '_id.y': 1, '_id.m': 1 } },
       ]),
+      Payment.aggregate<MonthAgg>([
+        {
+          $match: {
+            gym,
+            status: PAYMENT_STATUS.REFUNDED,
+            purpose: { $ne: PAYMENT_PURPOSE.PLATFORM },
+            'notes.purpose': { $ne: PAYMENT_PURPOSE.PLATFORM },
+            updatedAt: { $gte: trendFrom, $lt: periodEnd },
+          },
+        },
+        {
+          $group: {
+            _id: { y: { $year: '$updatedAt' }, m: { $month: '$updatedAt' } },
+            total: { $sum: '$amountPaise' },
+          },
+        },
+        { $sort: { '_id.y': 1, '_id.m': 1 } },
+      ]),
       Payment.find({
         gym,
         status: { $in: [PAYMENT_STATUS.PAID, PAYMENT_STATUS.REFUNDED] },
         purpose: { $ne: PAYMENT_PURPOSE.PLATFORM },
         'notes.purpose': { $ne: PAYMENT_PURPOSE.PLATFORM },
+        $or: [
+          { paidAt: { $gte: periodStart, $lt: periodEnd } },
+          { status: PAYMENT_STATUS.REFUNDED, updatedAt: { $gte: periodStart, $lt: periodEnd } },
+        ],
       })
         .sort({ updatedAt: -1 })
-        .limit(6)
+        .limit(12)
         .populate('member', 'name')
         .lean(),
-      Expense.find({ gym }).sort({ date: -1 }).limit(6).lean(),
+      Expense.find({ gym, date: { $gte: periodStart, $lt: periodEnd } })
+        .sort({ date: -1 })
+        .limit(12)
+        .lean(),
       Subscription.find({
         gym,
-        status: SUBSCRIPTION_STATUS.ACTIVE,
-        endDate: { $gte: now },
+        status: { $in: [SUBSCRIPTION_STATUS.ACTIVE, SUBSCRIPTION_STATUS.PENDING] },
+        $or: [
+          { status: SUBSCRIPTION_STATUS.PENDING },
+          { status: SUBSCRIPTION_STATUS.ACTIVE, endDate: { $gte: now } },
+        ],
       })
         .select('member planSnapshot.pricePaise planSnapshot.durationDays payment')
         .lean(),
@@ -382,16 +428,6 @@ export const financeService = {
         .select('subscription')
         .lean(),
     ]);
-    console.log('paidRows', paidRows);
-    console.log('prevIncomeRow', prevIncomeRow);
-    console.log('refundRows', refundRows);
-    console.log('unpaidInvoices', unpaidInvoices);
-    console.log('expenseRows', expenseRows);
-    console.log('trendRows', trendRows);
-    console.log('recentPayments', recentPayments);
-    console.log('recentExpenses', recentExpenses);
-    console.log('activeSubs', activeSubs);
-    console.log('paidSubPayments', paidSubPayments);
     // Subscriptions = paid this month that are membership (purpose or linked subscription).
     // One-time = everything else paid this month (manual invoices, misc).
     let subsIncome = 0;
@@ -443,8 +479,10 @@ export const financeService = {
     const pendingTotal = membershipDuesPaise + unpaidInvoicesTotal;
     const pendingCount = pendingMemberIds.size;
 
-    const totalRevenuePaise = subsIncome + oneTimeIncome;
-    const prevTotal = prevIncomeRow[0]?.total ?? 0;
+    // Net revenue for the selected month (gross paid − refunds in period).
+    const totalRevenuePaise = Math.max(0, subsIncome + oneTimeIncome - refundsTotal);
+    const prevRefundsTotal = prevRefundRows[0]?.total ?? 0;
+    const prevTotal = Math.max(0, (prevIncomeRow[0]?.total ?? 0) - prevRefundsTotal);
     const revenueDeltaPct =
       prevTotal > 0 ? Math.round(((totalRevenuePaise - prevTotal) / prevTotal) * 1000) / 10 : null;
 
@@ -458,8 +496,11 @@ export const financeService = {
     const trend: number[] = [];
     for (let i = 5; i >= 0; i -= 1) {
       const d = new Date(year, month - 1 - i, 1);
-      const row = trendRows.find((r) => r._id.y === d.getFullYear() && r._id.m === d.getMonth() + 1);
-      trend.push(row?.total ?? 0);
+      const y = d.getFullYear();
+      const m = d.getMonth() + 1;
+      const paid = trendRows.find((r) => r._id.y === y && r._id.m === m)?.total ?? 0;
+      const refunded = trendRefundRows.find((r) => r._id.y === y && r._id.m === m)?.total ?? 0;
+      trend.push(Math.max(0, paid - refunded));
     }
 
     const transactions = [
@@ -490,7 +531,7 @@ export const financeService = {
       })),
     ]
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 3);
+      .slice(0, 12);
 
     return {
       month,
@@ -534,8 +575,11 @@ export const financeService = {
         .lean(),
       Subscription.find({
         gym,
-        status: SUBSCRIPTION_STATUS.ACTIVE,
-        endDate: { $gte: now },
+        status: { $in: [SUBSCRIPTION_STATUS.ACTIVE, SUBSCRIPTION_STATUS.PENDING] },
+        $or: [
+          { status: SUBSCRIPTION_STATUS.PENDING },
+          { status: SUBSCRIPTION_STATUS.ACTIVE, endDate: { $gte: now } },
+        ],
       })
         .select('member planSnapshot.pricePaise planSnapshot.name payment endDate')
         .lean(),

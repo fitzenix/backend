@@ -1,4 +1,5 @@
 import { Schema, model, Types, type Model, type HydratedDocument } from 'mongoose';
+import { invalidateReads } from '../../utils/hotCache';
 import { CURRENCY, EXPENSE_CATEGORIES, type ExpenseCategory } from '../../config/constants';
 
 export interface IExpense {
@@ -37,6 +38,8 @@ const expenseSchema = new Schema<IExpense, ExpenseModel>(
 );
 
 expenseSchema.index({ gym: 1, note: 1 });
+expenseSchema.index({ gym: 1, date: -1 });
+invalidateReads(expenseSchema, { gymFrom: 'gym' });
 
 export const Expense = model<IExpense, ExpenseModel>('Expense', expenseSchema);
 export default Expense;

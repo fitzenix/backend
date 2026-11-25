@@ -14,6 +14,11 @@ export const billingController = {
     sendSuccess(res, { data });
   }),
 
+  orderStatus: asyncHandler<AuthedRequest>(async (req, res) => {
+    const data = await billingService.orderStatus(req, String(req.params.orderId ?? ''));
+    sendSuccess(res, { data });
+  }),
+
   checkout: asyncHandler<AuthedRequest>(async (req, res) => {
     const result = await billingService.checkout(req, req.body);
     sendCreated(res, { data: result, message: 'Checkout initiated' });

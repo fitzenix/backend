@@ -1,4 +1,5 @@
 import { Schema, model, Types, type Model, type HydratedDocument } from 'mongoose';
+import { invalidateReads } from '../../utils/hotCache';
 import { PAYMENT_STATUS, CURRENCY, type PaymentStatus } from '../../config/constants';
 
 export interface IPayment {
@@ -48,6 +49,10 @@ const paymentSchema = new Schema<IPayment, PaymentModel>(
   },
   { timestamps: true, toJSON: { versionKey: false } },
 );
+
+paymentSchema.index({ gym: 1, status: 1, paidAt: -1 });
+paymentSchema.index({ status: 1, paidAt: -1 });
+invalidateReads(paymentSchema, { gymFrom: 'gym' });
 
 export const Payment = model<IPayment, PaymentModel>('Payment', paymentSchema);
 export default Payment;

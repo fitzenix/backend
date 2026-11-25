@@ -1,4 +1,4 @@
-import { Types, type PipelineStage } from 'mongoose';
+import { Types } from 'mongoose';
 import { User } from '../users/user.model';
 import { Gym } from '../gyms/gym.model';
 import { Subscription } from '../memberships/subscription.model';
@@ -51,6 +51,54 @@ function formatClock(d: Date): string {
   return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 }
 
+async function countPendingMembers(gymOid: Types.ObjectId): Promise<number> {
+  const now = new Date();
+  // Align with finance.listPendingMembers: unpaid = no PAID payment for that subscription
+  // (checkout may set subscription.payment to a CREATED payment — still pending).
+  const paidSubIds = await Payment.distinct('subscription', {
+    gym: gymOid,
+    status: PAYMENT_STATUS.PAID,
+    subscription: { $ne: null },
+  });
+  const paidSubOids = paidSubIds.filter(Boolean);
+
+  const [row] = await Invoice.aggregate<{ n: number }>([
+    {
+      $match: {
+        gym: gymOid,
+        status: INVOICE_STATUS.UNPAID,
+        number: { $not: /^FX-/ },
+      },
+    },
+    { $project: { member: 1 } },
+    {
+      $unionWith: {
+        coll: Subscription.collection.collectionName,
+        pipeline: [
+          {
+            $match: {
+              gym: gymOid,
+              status: {
+                $in: [SUBSCRIPTION_STATUS.ACTIVE, SUBSCRIPTION_STATUS.PENDING],
+              },
+              // ACTIVE still must not be past end; PENDING checkout may not have end yet meaningful
+              $or: [
+                { status: SUBSCRIPTION_STATUS.PENDING },
+                { status: SUBSCRIPTION_STATUS.ACTIVE, endDate: { $gte: now } },
+              ],
+              ...(paidSubOids.length ? { _id: { $nin: paidSubOids } } : {}),
+            },
+          },
+          { $project: { member: 1 } },
+        ],
+      },
+    },
+    { $group: { _id: '$member' } },
+    { $count: 'n' },
+  ]);
+  return row?.n ?? 0;
+}
+
 async function sumPaid(
   match: Record<string, unknown>,
   includePlatform = false,
@@ -71,6 +119,28 @@ async function sumPaid(
     { $group: { _id: null, total: { $sum: '$amountPaise' }, count: { $sum: 1 } } },
   ]);
   return { totalPaise: row?.total ?? 0, count: row?.count ?? 0 };
+}
+
+async function sumRefunded(
+  match: Record<string, unknown>,
+  includePlatform = false,
+): Promise<number> {
+  const [row] = await Payment.aggregate<{ total: number }>([
+    {
+      $match: {
+        status: PAYMENT_STATUS.REFUNDED,
+        ...(includePlatform
+          ? {}
+          : {
+              purpose: { $ne: PAYMENT_PURPOSE.PLATFORM },
+              'notes.purpose': { $ne: PAYMENT_PURPOSE.PLATFORM },
+            }),
+        ...match,
+      },
+    },
+    { $group: { _id: null, total: { $sum: '$amountPaise' } } },
+  ]);
+  return row?.total ?? 0;
 }
 
 export const reportsService = {
@@ -222,12 +292,13 @@ export const reportsService = {
       revenue,
       monthRevenue,
       prevMonthRevenue,
+      monthRefunds,
+      prevMonthRefunds,
       newMembersToday,
       newMembersThisMonth,
       newMembersPrevMonth,
       openEnquiries,
-      unpaidInvoices,
-      unpaidActiveSubs,
+      pendingPayments,
     ] = await Promise.all([
       User.countDocuments({ ...gymMatch, role: ROLES.MEMBER, deletedAt: null }),
       User.countDocuments({ ...gymMatch, role: ROLES.TRAINER, deletedAt: null }),
@@ -250,6 +321,8 @@ export const reportsService = {
       sumPaid(gymMatch),
       sumPaid({ ...gymMatch, paidAt: { $gte: monthStart } }),
       sumPaid({ ...gymMatch, paidAt: { $gte: prevMonthStart, $lte: prevMonthEnd } }),
+      sumRefunded({ ...gymMatch, updatedAt: { $gte: monthStart } }),
+      sumRefunded({ ...gymMatch, updatedAt: { $gte: prevMonthStart, $lte: prevMonthEnd } }),
       User.countDocuments({
         ...gymMatch,
         role: ROLES.MEMBER,
@@ -272,36 +345,19 @@ export const reportsService = {
         ...gymMatch,
         status: { $in: [ENQUIRY_STATUS.NEW, ENQUIRY_STATUS.CONTACTED] },
       }),
-      Invoice.find({ ...gymMatch, status: INVOICE_STATUS.UNPAID, number: { $not: /^FX-/ } })
-        .select('member')
-        .lean(),
-      Subscription.find({
-        ...gymMatch,
-        status: SUBSCRIPTION_STATUS.ACTIVE,
-        endDate: { $gte: new Date() },
-        $or: [{ payment: null }, { payment: { $exists: false } }],
-      })
-        .select('member')
-        .lean(),
+      countPendingMembers(gymOid),
     ]);
 
-    const pendingMemberIds = new Set<string>([
-      ...unpaidInvoices.map((i) => String(i.member)),
-      ...unpaidActiveSubs.map((s) => String(s.member)),
-    ]);
+    const monthNetPaise = Math.max(0, monthRevenue.totalPaise - monthRefunds);
+    const prevMonthNetPaise = Math.max(0, prevMonthRevenue.totalPaise - prevMonthRefunds);
 
     const membersDeltaPct =
       newMembersPrevMonth > 0
         ? Number((((newMembersThisMonth - newMembersPrevMonth) / newMembersPrevMonth) * 100).toFixed(1))
         : null;
     const revenueDeltaPct =
-      prevMonthRevenue.totalPaise > 0
-        ? Number(
-            (
-              ((monthRevenue.totalPaise - prevMonthRevenue.totalPaise) / prevMonthRevenue.totalPaise) *
-              100
-            ).toFixed(1),
-          )
+      prevMonthNetPaise > 0
+        ? Number((((monthNetPaise - prevMonthNetPaise) / prevMonthNetPaise) * 100).toFixed(1))
         : null;
 
     return {
@@ -309,11 +365,11 @@ export const reportsService = {
       trainers,
       subscriptions: { active: activeSubs, expiringSoon: expiringSubs, expiringIn3Days },
       attendance: { today: checkedInToday },
-      revenue: { allTimePaise: revenue.totalPaise, thisMonthPaise: monthRevenue.totalPaise },
+      revenue: { allTimePaise: revenue.totalPaise, thisMonthPaise: monthNetPaise },
       newMembersToday,
       newMembersThisMonth,
       openEnquiries,
-      pendingPayments: pendingMemberIds.size,
+      pendingPayments,
       deltas: {
         membersThisMonthPct: membersDeltaPct,
         revenueThisMonthPct: revenueDeltaPct,
@@ -474,16 +530,16 @@ export const reportsService = {
       'memberProfile.assignedTrainer': trainerId,
     };
 
-    const [assignedMembers, workouts, diets, assignedIds, plans] = await Promise.all([
-      User.countDocuments(assignedFilter),
+    const [assignedIds, workouts, diets, plans] = await Promise.all([
+      User.find(assignedFilter).select('_id').lean(),
       WorkoutPlan.countDocuments({ gym, trainer: trainerId, deletedAt: null }),
       DietPlan.countDocuments({ gym, trainer: trainerId, deletedAt: null }),
-      User.find(assignedFilter).select('_id').lean(),
       WorkoutPlan.find({ gym, trainer: trainerId, deletedAt: null, isActive: true })
         .select('title days member')
         .lean(),
     ]);
 
+    const assignedMembers = assignedIds.length;
     const memberIds = assignedIds.map((m) => m._id);
     const attendanceToday = memberIds.length
       ? await Attendance.find({
@@ -611,16 +667,13 @@ export const reportsService = {
     weekStart.setDate(weekStart.getDate() + mondayOffset);
     const weekEnd = new Date(weekStart.getTime() + 7 * DAY_MS);
 
+    const monthStart = startOfMonth();
     const [
       current,
       attendanceCount,
-      thisMonthAttendance,
       workouts,
       diets,
-      todaySessions,
-      weekSessions,
       recentSessions,
-      memberUser,
     ] = await Promise.all([
       Subscription.findOne({
         gym,
@@ -631,28 +684,26 @@ export const reportsService = {
         .sort({ endDate: -1 })
         .populate('plan', 'name durationDays pricePaise'),
       Attendance.countDocuments({ gym, member: memberId }),
-      Attendance.countDocuments({ gym, member: memberId, checkInAt: { $gte: startOfMonth() } }),
       WorkoutPlan.countDocuments({ gym, member: memberId, deletedAt: null, isActive: true }),
       DietPlan.countDocuments({ gym, member: memberId, deletedAt: null, isActive: true }),
-      Attendance.find({ gym, member: memberId, checkInAt: { $gte: todayStart } }).lean(),
-      Attendance.find({
-        gym,
-        member: memberId,
-        checkInAt: { $gte: weekStart, $lt: weekEnd },
-      })
-        .select('checkInAt')
-        .lean(),
-      // Last ~60 days for streak calculation
+      // One window covers streak, this week, this month, and today's sessions.
       Attendance.find({
         gym,
         member: memberId,
         checkInAt: { $gte: new Date(now.getTime() - 60 * DAY_MS) },
       })
-        .select('checkInAt')
+        .select('checkInAt checkOutAt durationMinutes')
         .sort({ checkInAt: -1 })
         .lean(),
-      User.findById(memberId).select('memberProfile name phone').lean(),
     ]);
+
+    const memberUser = ctx.user;
+    const todaySessions = recentSessions.filter((s) => new Date(s.checkInAt) >= todayStart);
+    const thisMonthAttendance = recentSessions.filter((s) => new Date(s.checkInAt) >= monthStart).length;
+    const weekSessions = recentSessions.filter((s) => {
+      const at = new Date(s.checkInAt);
+      return at >= weekStart && at < weekEnd;
+    });
 
     // Unique attendance days (yyyy-mm-dd local).
     const attendedDays = new Set(
@@ -763,33 +814,70 @@ export const reportsService = {
     };
   },
 
-  /** Revenue time series (last N months) for a gym or the whole platform. */
+  /** Revenue time series (last N months) for a gym or the whole platform — net of refunds. */
   async revenueSeries({ gymId = null, months = 6 }: { gymId?: string | null; months?: number }) {
     const from = startOfMonth(new Date(new Date().setMonth(new Date().getMonth() - (months - 1))));
-    const match: Record<string, unknown> = {
-      status: PAYMENT_STATUS.PAID,
-      paidAt: { $gte: from },
-    };
+    const tenantFilter: Record<string, unknown> = {};
     if (gymId) {
-      match.gym = new Types.ObjectId(gymId);
-      match.purpose = { $ne: PAYMENT_PURPOSE.PLATFORM };
-      match['notes.purpose'] = { $ne: PAYMENT_PURPOSE.PLATFORM };
+      tenantFilter.gym = new Types.ObjectId(gymId);
+      tenantFilter.purpose = { $ne: PAYMENT_PURPOSE.PLATFORM };
+      tenantFilter['notes.purpose'] = { $ne: PAYMENT_PURPOSE.PLATFORM };
     }
 
-    const pipeline: PipelineStage[] = [
-      { $match: match },
-      {
-        $group: {
-          _id: { y: { $year: '$paidAt' }, m: { $month: '$paidAt' } },
-          totalPaise: { $sum: '$amountPaise' },
-          count: { $sum: 1 },
-        },
-      },
-      { $sort: { '_id.y': 1, '_id.m': 1 } },
-    ];
+    const paidMatch: Record<string, unknown> = {
+      status: PAYMENT_STATUS.PAID,
+      paidAt: { $gte: from },
+      ...tenantFilter,
+    };
+    const refundMatch: Record<string, unknown> = {
+      status: PAYMENT_STATUS.REFUNDED,
+      updatedAt: { $gte: from },
+      ...tenantFilter,
+    };
 
-    const rows = await Payment.aggregate<{ _id: { y: number; m: number }; totalPaise: number; count: number }>(pipeline);
-    return rows.map((r) => ({ year: r._id.y, month: r._id.m, totalPaise: r.totalPaise, count: r.count }));
+    const [paidRows, refundRows] = await Promise.all([
+      Payment.aggregate<{ _id: { y: number; m: number }; totalPaise: number; count: number }>([
+        { $match: paidMatch },
+        {
+          $group: {
+            _id: { y: { $year: '$paidAt' }, m: { $month: '$paidAt' } },
+            totalPaise: { $sum: '$amountPaise' },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { '_id.y': 1, '_id.m': 1 } },
+      ]),
+      Payment.aggregate<{ _id: { y: number; m: number }; totalPaise: number }>([
+        { $match: refundMatch },
+        {
+          $group: {
+            _id: { y: { $year: '$updatedAt' }, m: { $month: '$updatedAt' } },
+            totalPaise: { $sum: '$amountPaise' },
+          },
+        },
+      ]),
+    ]);
+
+    const paidByKey = new Map(paidRows.map((r) => [`${r._id.y}-${r._id.m}`, r]));
+    const refundByKey = new Map(refundRows.map((r) => [`${r._id.y}-${r._id.m}`, r.totalPaise]));
+    const series: { year: number; month: number; totalPaise: number; count: number }[] = [];
+    const cursor = new Date(from.getFullYear(), from.getMonth(), 1);
+    const end = startOfMonth(new Date());
+    while (cursor <= end) {
+      const y = cursor.getFullYear();
+      const m = cursor.getMonth() + 1;
+      const key = `${y}-${m}`;
+      const hit = paidByKey.get(key);
+      const refunded = refundByKey.get(key) ?? 0;
+      series.push({
+        year: y,
+        month: m,
+        totalPaise: Math.max(0, (hit?.totalPaise ?? 0) - refunded),
+        count: hit?.count ?? 0,
+      });
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+    return series;
   },
 };
 

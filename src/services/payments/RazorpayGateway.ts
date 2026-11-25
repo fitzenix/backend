@@ -8,6 +8,7 @@ import type {
   GatewayOrder,
   VerifyPaymentSignatureInput,
   VerifyWebhookInput,
+  ConfirmPaymentInput,
   RefundInput,
   GatewayRefund,
 } from './PaymentGateway';
@@ -17,6 +18,8 @@ interface RazorpayClient {
   orders: { create(opts: Record<string, unknown>): Promise<{ id: string; amount: number; currency: string }> };
   payments: {
     refund(paymentId: string, opts: { amount: number }): Promise<{ id: string; status: string; amount: number }>;
+    fetch(paymentId: string): Promise<{ id: string; status: string; order_id: string; amount: number; currency: string }>;
+    capture(paymentId: string, amount: number, currency: string): Promise<{ id: string; status: string }>;
   };
 }
 
@@ -48,6 +51,9 @@ export class RazorpayGateway implements PaymentGateway {
   }
 
   async createOrder({ amountPaise, currency = CURRENCY, receipt, notes, method }: CreateOrderInput): Promise<GatewayOrder> {
+    if (!Number.isInteger(amountPaise) || amountPaise < 100) {
+      throw ApiError.badRequest('Amount must be at least 100 paise');
+    }
     const client = await this.getClient();
     const stringNotes = Object.fromEntries(
       Object.entries(notes ?? {}).map(([k, v]) => [k, v == null ? '' : String(v)]),
@@ -74,11 +80,56 @@ export class RazorpayGateway implements PaymentGateway {
     return safeEqual(expected, signature);
   }
 
+  async confirmPayment({ paymentId, orderId, amountPaise, currency }: ConfirmPaymentInput): Promise<void> {
+    const client = await this.getClient();
+    const started = Date.now();
+    const timeoutMs = 45_000;
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    // GPay/UPI can briefly leave status as created/authorized before capture lands.
+    while (Date.now() - started < timeoutMs) {
+      let row: Awaited<ReturnType<RazorpayClient['payments']['fetch']>>;
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        row = await client.payments.fetch(paymentId);
+      } catch (err) {
+        throw mapRazorpayError(err);
+      }
+      if (row.order_id !== orderId) throw ApiError.badRequest('Payment does not belong to this order');
+      if (row.amount !== amountPaise || row.currency !== currency) {
+        throw ApiError.badRequest('Payment amount does not match the order');
+      }
+      if (row.status === 'captured') return;
+      if (row.status === 'failed' || row.status === 'refunded') {
+        throw ApiError.badRequest('Payment was not successful. Please try again.');
+      }
+      if (row.status === 'authorized') {
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          const captured = await client.payments.capture(paymentId, amountPaise, currency);
+          if (captured.status === 'captured') return;
+        } catch (err) {
+          // Capture can race with auto-capture — keep polling briefly.
+          const msg = String((err as { error?: { description?: string }; message?: string })?.error?.description
+            ?? (err as { message?: string })?.message
+            ?? '');
+          if (!/already captured|not authorized/i.test(msg)) {
+            throw mapRazorpayError(err);
+          }
+        }
+      }
+      // eslint-disable-next-line no-await-in-loop
+      await sleep(1500);
+    }
+    throw ApiError.badRequest(
+      'Payment has not been completed yet. If money was debited, wait a moment and open the app again — or contact support.',
+    );
+  }
+
   verifyWebhookSignature({ rawBody, signature }: VerifyWebhookInput): boolean {
-    const expected = crypto
-      .createHmac('sha256', env.payments.razorpay.webhookSecret)
-      .update(rawBody)
-      .digest('hex');
+    const secret = env.payments.razorpay.webhookSecret;
+    if (!secret) return false;
+    const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
     return safeEqual(expected, signature);
   }
 

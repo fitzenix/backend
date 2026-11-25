@@ -43,9 +43,18 @@ export interface GatewayRefund {
   raw: unknown;
 }
 
+export interface ConfirmPaymentInput {
+  paymentId: string;
+  orderId: string;
+  amountPaise: number;
+  currency: string;
+}
+
 export interface PaymentGateway {
   createOrder(input: CreateOrderInput): Promise<GatewayOrder>;
   verifyPaymentSignature(input: VerifyPaymentSignatureInput): boolean;
+  /** Ask the provider that the payment is captured for this order and amount; throws otherwise. */
+  confirmPayment(input: ConfirmPaymentInput): Promise<void>;
   verifyWebhookSignature(input: VerifyWebhookInput): boolean;
   refund(input: RefundInput): Promise<GatewayRefund>;
 }
